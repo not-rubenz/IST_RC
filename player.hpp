@@ -12,9 +12,11 @@
 #include <string.h>
 #include <string>
 #include <iostream>
+#include <vector>
 #define PORT "58001"
 
 using std::string;
+using std::vector;
 
 class Player {
     string gsip, gsport;
@@ -26,9 +28,13 @@ class Player {
         Player(int argc, char** argv);
 
     private:
-        void parse_input(int argc, char** argv);
+        void connection_input(int argc, char** argv);
         void connect_UDP(string ip, string port);
-        void handle_input(int argc, char** argv);
+        void command_input();
+        void start_cmd();
+        void try_cmd();
+        void show_trials_cmd();
+        void score_board_cmd();
 };
 
 #endif 

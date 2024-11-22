@@ -3,17 +3,18 @@
 
 
 Player::Player(int argc, char** argv) {
-    string plid = "";
-    int max_playtime = 0;
+    plid = "";
+    max_playtime = 0;
 
-    parse_input(argc, argv);
+    connection_input(argc, argv);
 
     connect_UDP(gsip, gsport);
+    command_input();
 }
 
 
 
-void Player::parse_input(int argc, char** argv) {
+void Player::connection_input(int argc, char** argv) {
     char opt;
     extern char* optarg;
 
@@ -43,6 +44,7 @@ void Player::parse_input(int argc, char** argv) {
     }
 }
 
+
 void Player::connect_UDP(string ip, string port) {
     int fd,errcode;
     ssize_t n;
@@ -51,13 +53,13 @@ void Player::connect_UDP(string ip, string port) {
     struct sockaddr_in addr;
     char buffer[128];
 
-    fd = socket(AF_INET,SOCK_DGRAM,0); //UDP socket
+    fd = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
     if(fd == -1) {
         fprintf(stderr, "Unable to create socket.\n");
         exit(EXIT_FAILURE);
     } 
 
-    memset(&hints,0,sizeof hints);
+    memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET; //IPv4
     hints.ai_socktype = SOCK_DGRAM; //UDP socket
 
@@ -67,14 +69,55 @@ void Player::connect_UDP(string ip, string port) {
         exit(EXIT_FAILURE);
     } 
 
-//FIXME: not sure if we need to save the socket;
+//TODO: not sure if we need to save the socket;
 //     freeaddrinfo(res);
 //     close(fd);
+}
+
+void Player::command_input() {
+    char str[MAX_LINE_SIZE];
+    vector<string> line; 
+
+    while(1) {
+        while (getline(std::cin, str, ' ')) {
+            line.push_back(str);
+        }
+
+        const char* command = line[0].c_str();
+        if (!strcmp(command, START)) {
+            if (line[1].length() != 6) {}
+            
+            start_cmd();
+        }
+
+        else if (!strcmp(command, TRY)) {
+            try_cmd();
+        }
+
+        else if (!strcmp(command, SHOW_TRIAL) || !strcmp(command, ST)) {
+            show_trials_cmd();
+        }
+
+        else if (!strcmp(command, SCOREBOARD) || !strcmp(command, SB)) {
+            score_board_cmd();
+        }
+    }
+}
+
+
+void Player::start_cmd() {
+    char line[MAX_LINE_SIZE];
+
+    if (!fgets(line, sizeof(line), stdin)) {
+        exit(EXIT_FAILURE);
+    }
+
 }
 
 
 int main(int argc, char** argv) {
 
     Player(argc, argv);
+
     return 0;
 }
