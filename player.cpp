@@ -4,12 +4,14 @@
 
 
 Player::Player(int argc, char** argv) {
-    plid = "";
-    max_playtime = 0;
+    plid = "600000";
+    max_playtime = 400;
+    tries = 1;
 
     connection_input(argc, argv);
 
-    connect_UDP(gsip, gsport);
+    connect_UDP("tejo.tecnico.ulisboa.pt", "58011");
+    // connect_UDP(gsip, gsport);
     command_input();
 }
 
@@ -50,7 +52,7 @@ void Player::connect_UDP(string ip, string port) {
     int fd,errcode;
     ssize_t n;
     socklen_t addrlen;
-    struct addrinfo hints,*res;
+    struct addrinfo hints, *res;
     struct sockaddr_in addr;
     char buffer[128];
 
@@ -70,27 +72,32 @@ void Player::connect_UDP(string ip, string port) {
         exit(EXIT_FAILURE);
     } 
 
+    UDPsocket.fd = fd;
+    UDPsocket.res = res;
 //TODO: not sure if we need to save the socket;
 //     freeaddrinfo(res);
 //     close(fd);
 }
 
 void Player::command_input() {
-    char str[MAX_LINE_SIZE];
-    vector<string> line; 
 
     while(1) {
-        while (getline(std::cin, str, ' ')) {
-            line.push_back(str);
-        }
+        string command_string;
+        string args;
 
-        const char* command = line[0].c_str();
+        std::cin >> command_string;
+        std::getline(std::cin, args);
+
+        const char* command = command_string.c_str();
+        
+
+
         if (!strcmp(command, START)) {
-            start_cmd(line);
+            start_cmd(args);
         }
 
         else if (!strcmp(command, TRY)) {
-            try_cmd();
+            try_cmd(args);
         }
 
         else if (!strcmp(command, SHOW_TRIAL) || !strcmp(command, ST)) {
@@ -104,13 +111,38 @@ void Player::command_input() {
 }
 
 
-void Player::start_cmd(vector <string> line) {
-    if (!check_start_input(line)) return;
+void Player::start_cmd(string line) {
+    ssize_t n;
+    char buffer[128];
+    string message = "SNG" +  line + '\n';
+    n = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
+    n = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
 
-    
+    write(1,"echo: ",6);
+    write(1,buffer, n);
 
 }
 
+
+void Player::try_cmd(string line) {
+    char buffer[128];
+    ssize_t n;
+    string message = "TRY " + plid + line + ' ' + std::to_string(tries) +'\n';
+    n = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
+    n = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
+    write(1,"echo: ",6);
+    write(1, buffer, n);
+    tries++;
+}
+
+void Player::show_trials_cmd() {
+
+}
+
+
+void Player::score_board_cmd() {
+
+}
 
 int main(int argc, char** argv) {
 

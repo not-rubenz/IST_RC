@@ -17,11 +17,17 @@
 using std::string;
 using std::vector;
 
+typedef struct SOCKET {
+    int fd;
+    struct addrinfo *res;
+} SOCKET;
+
 class Player {
     string gsip, gsport;
     string plid;
     int max_playtime;
-    // SOCKET UDPsocket;
+    int tries;
+    SOCKET UDPsocket;
 
     public:
         Player(int argc, char** argv);
@@ -30,8 +36,8 @@ class Player {
         void connection_input(int argc, char** argv);
         void connect_UDP(string ip, string port);
         void command_input();
-        void start_cmd(vector<string> line);
-        void try_cmd();
+        void start_cmd(string line);
+        void try_cmd(string line);
         void show_trials_cmd();
         void score_board_cmd();
 };
