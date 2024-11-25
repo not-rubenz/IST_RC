@@ -1,14 +1,15 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <string.h>
-#include <string>
-#include <iostream>
-#include <vector>
+#include "utils.hpp"
 
+int check_start_input(vector<string> line) {
+    if (line[1].length() != 6) {
+        fprintf(stderr, "Unable to create socket.\n");
+    }
+    else if (line.size() != 3) {
+        fprintf(stderr, "Unable to create socket.\n");
+    }
 
+    try {
+        line[2] = stoi(line[2]);
+    }
+    catch (std::invalid_argument) {fprintf(stderr, "Unable to create socket.\n");}
+}

@@ -1,5 +1,6 @@
 #include "player.hpp"
 #include "constants.hpp"
+#include "utils.hpp"
 
 
 Player::Player(int argc, char** argv) {
@@ -85,9 +86,7 @@ void Player::command_input() {
 
         const char* command = line[0].c_str();
         if (!strcmp(command, START)) {
-            if (line[1].length() != 6) {}
-            
-            start_cmd();
+            start_cmd(line);
         }
 
         else if (!strcmp(command, TRY)) {
@@ -105,12 +104,10 @@ void Player::command_input() {
 }
 
 
-void Player::start_cmd() {
-    char line[MAX_LINE_SIZE];
+void Player::start_cmd(vector <string> line) {
+    if (!check_start_input(line)) return;
 
-    if (!fgets(line, sizeof(line), stdin)) {
-        exit(EXIT_FAILURE);
-    }
+    
 
 }
 
