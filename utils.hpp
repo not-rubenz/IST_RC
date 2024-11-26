@@ -11,13 +11,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <vector>
 
 using std::string;
 using std::vector;
 
-int check_start_input(vector<string> line);
-
+vector<string> split_line(string line);
 
 #endif

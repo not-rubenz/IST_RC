@@ -14,6 +14,9 @@
 #define ST "st"
 #define SCOREBOARD "scoreboard"
 #define SB "sb"
+#define QUIT "quit"
+#define DEBUG "debug"
+
 
 
 #endif

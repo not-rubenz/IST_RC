@@ -1,15 +1,14 @@
 #include "utils.hpp"
 
-int check_start_input(vector<string> line) {
-    if (line[1].length() != 6) {
-        fprintf(stderr, "Unable to create socket.\n");
-    }
-    else if (line.size() != 3) {
-        fprintf(stderr, "Unable to create socket.\n");
-    }
 
-    try {
-        line[2] = stoi(line[2]);
+vector<string> split_line(string line) {
+    std::stringstream ss(line);
+    string word;
+    vector<string> words;
+    
+    while (ss >> word) {
+        words.push_back(word);
     }
-    catch (std::invalid_argument) {fprintf(stderr, "Unable to create socket.\n");}
+    
+    return words;
 }

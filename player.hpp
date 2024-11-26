@@ -25,9 +25,10 @@ typedef struct SOCKET {
 class Player {
     string gsip, gsport;
     string plid;
-    int max_playtime;
+    string max_playtime;
     int tries;
     SOCKET UDPsocket;
+    SOCKET TCPsocket;
 
     public:
         Player(int argc, char** argv);
@@ -35,11 +36,14 @@ class Player {
     private:
         void connection_input(int argc, char** argv);
         void connect_UDP(string ip, string port);
+        void connect_TCP(string ip, string port);
         void command_input();
         void start_cmd(string line);
         void try_cmd(string line);
         void show_trials_cmd();
         void score_board_cmd();
+        void player_terminate();
+        void debug_cmd(string line);
 };
 
 #endif 
