@@ -12,7 +12,7 @@ Player::Player(int argc, char** argv) {
     connection_input(argc, argv);
 
     connect_UDP(gsip, gsport);
-    connect_TCP(gsip, gsport);
+    // connect_TCP(gsip, gsport);
     command_input();
 }
 
@@ -31,7 +31,7 @@ void Player::connection_input(int argc, char** argv) {
                 gsport = optarg;
                 break;
             default:
-                fprintf(stderr, "Usage: %s [-n DSIP] [-p DSport]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-n GSIP] [-p GSport]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
@@ -43,7 +43,7 @@ void Player::connection_input(int argc, char** argv) {
         gsport = GSPORT_DEFAULT;
     }
     if (argc > 5) {
-        fprintf(stderr, "Usage: %s [-n DSIP] [-p DSport]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-n GSIP] [-p GSport]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 }
@@ -150,8 +150,6 @@ void Player::start_cmd(string line) {
     char buffer[128];
 
     vector<string> input = split_line(line);
-    plid = input[0];
-    max_playtime = input[1];
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) exit(-1);
@@ -160,6 +158,11 @@ void Player::start_cmd(string line) {
     if (ret == -1) exit(-1);
 
     write(1, buffer, ret);
+    
+    if (strcmp(buffer, "ERR\n")) {
+        plid = input[0];
+        max_playtime = input[1];
+    }
 }
 
 
@@ -179,37 +182,37 @@ void Player::try_cmd(string line) {
 
 void Player::show_trials_cmd() {
     ssize_t ret;
-    string message = "STR\n";
-    char buffer[128];
+    string message = "STR " + plid + "\n";
+    char buffer[2048];
 
-    // ret = connect(TCPsocket.fd, TCPsocket.res->ai_addr, TCPsocket.res->ai_addrlen);
-    // if(ret == -1)/*error*/exit(1);
+    connect_TCP(gsip, gsport);
 
-    ret = write(TCPsocket.fd, message.c_str(), strlen(message.c_str()));
+    ret = sendTCP(TCPsocket.fd, message, strlen(message.c_str()));
     if (ret == -1) exit(-1);
 
-    ret = read(TCPsocket.fd, buffer, strlen(buffer));
+    ret = receiveTCP(TCPsocket.fd, buffer, 2048);
     if (ret == -1) exit(-1);
-    //TODO: while loop for write function
-    write(1, buffer, ret);
+
+    sendTCP(1, buffer, ret);
+    tcp_terminate();
 }
 
 
 void Player::score_board_cmd() {
     ssize_t ret;
     string message = "SSB\n";
-    char buffer[128];
+    char buffer[2048];
 
-    // ret = connect(TCPsocket.fd, TCPsocket.res->ai_addr, TCPsocket.res->ai_addrlen);
-    // if(ret == -1)/*error*/exit(1);
+    connect_TCP(gsip, gsport);
 
-    ret = write(TCPsocket.fd, message.c_str(), strlen(message.c_str()));
+    ret = sendTCP(TCPsocket.fd, message, message.size());
     if (ret == -1) exit(-1);
 
-    ret = read(TCPsocket.fd, buffer, 128);
+    ret = receiveTCP(TCPsocket.fd, buffer, 2048);
     if (ret == -1) exit(-1);
-    //TODO: while loop for write function
-    write(1, buffer, ret);
+
+    sendTCP(1, buffer, ret);
+    tcp_terminate();
 
 }
 
@@ -218,8 +221,6 @@ void Player::debug_cmd(string line) {
     string message = "DBG" + line + '\n';
     char buffer[128];
     vector<string> input = split_line(line);
-    plid = input[0];
-    max_playtime = input[1];
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) exit(-1);
@@ -228,13 +229,20 @@ void Player::debug_cmd(string line) {
     if (ret == -1) exit(-1);
 
     write(1, buffer, ret);
+    if (strcmp(buffer, "ERR\n")) {
+        plid = input[0];
+        max_playtime = input[1];
+    }
+}
+
+void Player::tcp_terminate() {
+    close(TCPsocket.fd);
 }
 
 void Player::player_terminate() {
     freeaddrinfo(UDPsocket.res);
     freeaddrinfo(TCPsocket.res);
     close(UDPsocket.fd);
-    close(TCPsocket.fd);
     exit(0);
 }
 

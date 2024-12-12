@@ -2,7 +2,7 @@
 #define __H_CONSTANTS
 
 #define GROUP_NUMBER "36"
-#define GSIP_DEFAULT "172.29.49.135"
+#define GSIP_DEFAULT "127.0.0.1"
 #define GSPORT_DEFAULT "58036"
 
 #define MAX_LINE_SIZE 128
@@ -17,6 +17,7 @@
 #define QUIT "quit"
 #define DEBUG "debug"
 
+#define MAX_TRIALS 8
 
 
 #endif

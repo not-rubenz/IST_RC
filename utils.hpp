@@ -19,5 +19,7 @@ using std::string;
 using std::vector;
 
 vector<string> split_line(string line);
+int sendTCP(int fd, string message, int nbytes);
+int receiveTCP(int fd, char* message, int nbytes);
 
 #endif

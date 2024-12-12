@@ -44,6 +44,7 @@ class Player {
         void score_board_cmd();
         void player_terminate();
         void debug_cmd(string line);
+        void tcp_terminate();
 };
 
 #endif 
