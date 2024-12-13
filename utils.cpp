@@ -1,6 +1,5 @@
 #include "utils.hpp"
 
-
 vector<string> split_line(string line) {
     std::stringstream ss(line);
     string word;
@@ -13,42 +12,50 @@ vector<string> split_line(string line) {
     return words;
 }
 
-int sendTCP(int fd, string message, int nbytes){
-    ssize_t nleft, n;
-    int nwritten = 0;
-    char * ptr, buffer[1024];
+int sendTCP(int fd, string message, int size){
+    int bytes_written = 0;
+    char *ptr, buffer[1024];
 
     ptr = strcpy(buffer, message.c_str());
-
-    nleft = nbytes;
-    while(nleft > 0){
-        n = write(fd, ptr, nleft);
-        if(n <= 0){
-            fprintf(stderr, "Unable to send message, please try again!\n");
-            return -1;
+    while(bytes_written < size){
+        size_t n = write(fd, ptr, size - bytes_written);
+        if(n == -1){
+            if (errno == EINTR) {
+                continue;
+            } else {
+                fprintf(stderr, "Unable to send message, please try again!\n");
+                return -1;
+            }
         }
-        nleft -= n;
         ptr += n;
-        nwritten += n;
+        bytes_written += n;
     }
-    return nwritten;
+    return bytes_written;
 }
 
-int receiveTCP(int fd, char * message, int nbytes){
-    ssize_t nleft, nread;
+int receiveTCP(int fd, char * message, int size){
+    size_t bytes_read = 0;
     char *ptr;
-    nleft = nbytes;
+
     ptr = message;
 
-    while(nleft > 0){
-        nread = read(fd, ptr, nleft);
-        if(nread == -1){
-            break;  
+    while(bytes_read < size){
+        ssize_t n = read(fd, ptr, size - bytes_read);
+        if(n == -1){
+            if (errno == EINTR) {
+                continue;
+            } else {
+                fprintf(stderr, "Error while reading message!\n");
+                return -1;
+            }
         }
-        else if(nread == 0) break;
-        nleft -= nread;
-        ptr += nread;
+        
+        if(n == 0) {
+            break;
+        }
+
+        bytes_read += n;
+        ptr += n;
     }
-    nread = nbytes - nleft;
-    return nread;
-    }
+    return bytes_read;
+}

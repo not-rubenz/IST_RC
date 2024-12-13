@@ -1,7 +1,6 @@
 #include "player.hpp"
 #include "constants.hpp"
 #include "utils.hpp"
-#include "utils.cpp"
 
 
 Player::Player(int argc, char** argv) {
