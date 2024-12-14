@@ -1,7 +1,6 @@
 #include "server.hpp"
 #include "constants.hpp"
 #include "utils.hpp"
-#include "utils.cpp"
 
 
 Server::Server(int argc, char** argv) {
@@ -37,123 +36,211 @@ void Server::connection_input(int argc, char** argv) {
     }
 }
 
-
 void Server::setup_UDP(string port) {
-    int fd,errcode;
-    ssize_t n;
-    socklen_t addrlen;
-    struct addrinfo hints, *res;
-    struct sockaddr_in addr;
-    char buffer[128];
-    
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if(fd == -1) {
-        fprintf(stderr, "Unable to create socket.\n");
-        exit(EXIT_FAILURE);
-    }
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;// IPv4
-    hints.ai_socktype = SOCK_DGRAM; // UDP socket
-    hints.ai_flags = AI_PASSIVE;
-    errcode = getaddrinfo(NULL, port.c_str(), &hints, &res);
-    if(errcode != 0) {
-        fprintf(stderr, "Unable to link to server.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    n = bind(fd, res->ai_addr, res->ai_addrlen);
-	if(n == -1) {
-        fprintf(stderr, "Unable to bind to user.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    //save the socket
-    UDPsocket.fd = fd;
-    UDPsocket.res = res;
-}
- 
-void Server::setup_TCP(string port){
     int fd;
-    int n;
-    struct sockaddr_in servaddr;
+    struct addrinfo hints, *res;
 
-    fd = socket(AF_INET, SOCK_STREAM, 0);
-	if(fd == -1){
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd == -1) {
         fprintf(stderr, "Unable to create socket.\n");
         exit(EXIT_FAILURE);
     }
 
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(stoi(port));
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_PASSIVE;
 
-    n = bind(fd, (struct sockaddr*)&servaddr, sizeof(servaddr));
-	if(n == -1){
+    int errcode = getaddrinfo(NULL, gsport.c_str(), &hints, &res);
+    if (errcode == -1) {
+        fprintf(stderr, "Unable to get address info.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int n = bind(fd, res->ai_addr, res->ai_addrlen);
+    if (n == -1) {
         fprintf(stderr, "Unable to bind.\n");
         exit(EXIT_FAILURE);
     }
 
-    if(listen(fd, 10) == -1){
+    UDPsocket.fd = fd;
+
+}
+
+void Server::setup_TCP(string port) {
+    
+    int fd;
+    struct addrinfo hints, *res;
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1) {
+        fprintf(stderr, "Unable to create socket.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    int errcode = getaddrinfo(NULL, gsport.c_str(), &hints, &res);
+    if (errcode == -1) {
+        fprintf(stderr, "Unable to get address info.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int n = bind(fd, res->ai_addr, res->ai_addrlen);
+    if (n == -1) {
+        fprintf(stderr, "Unable to bind.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(fd, 10) == -1) {
         fprintf(stderr, "Unable to listen.\n");
         exit(EXIT_FAILURE);
     }
 
-
     TCPsocket.fd = fd;
-    TCPsocket.addr = servaddr;
+
 }
 
 void Server::receive_request(){
-    int tcpfd, connfd, udpfd, maxfdp1;
-    char bufferUDP[10], bufferTCP[10];
-    fd_set rset;
-    ssize_t n;
-    socklen_t len;
-    struct sockaddr_in cliaddr;
-    void sig_chld(int);
-    pid_t childpid;
 
-    tcpfd = TCPsocket.fd;
-    udpfd = UDPsocket.fd;
+    // int tcp_fd, new_tcp_fd;
+    // struct addrinfo hints, *res;
+    // socklen_t addrlen;
+    // struct sockaddr_in addr;
+    // char bufferTCP[4];
 
-    FD_ZERO(&rset);
+    // tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
+    // if (tcp_fd == -1) {
+    //     fprintf(stderr, "Unable to create socket.\n");
+    //     exit(EXIT_FAILURE);
+    // }
 
-    maxfdp1 = std::max(tcpfd, udpfd) + 1;
-    while(1){
-        FD_SET(tcpfd, &rset);
-        FD_SET(udpfd, &rset);
-        select(maxfdp1, &rset, NULL, NULL, NULL);
-        /* TCP request */
-        if (FD_ISSET(tcpfd, &rset)){
-            len = sizeof(cliaddr);
-            connfd = accept(tcpfd, (struct sockaddr*)&cliaddr, &len);
-            if (connfd == -1){
-                //TODO:handle_error();
-            }
-            n = receiveTCP(connfd, bufferTCP, 4);
-            // if (n == -1){
-            //     handle_error();
-            // }    
-            // handle_request(bufferTCP);
-            printf("%s\n", bufferTCP);
+    // bzero(&hints, sizeof(hints));
+    // hints.ai_family = AF_INET;
+    // hints.ai_socktype = SOCK_STREAM;
+    // hints.ai_flags = AI_PASSIVE;
 
-            close(connfd);
+    // int errcode = getaddrinfo(NULL, gsport.c_str(), &hints, &res);
+    // if (errcode == -1) {
+    //     fprintf(stderr, "Unable to get address info.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // int n = bind(tcp_fd, res->ai_addr, res->ai_addrlen);
+    // if (n == -1) {
+    //     fprintf(stderr, "Unable to bind.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // if (listen(tcp_fd, 10) == -1) {
+    //     fprintf(stderr, "Unable to listen.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    int udp_fd, tcp_fd, new_fd, n;
+    socklen_t addrlen;
+    struct sockaddr_in addr;
+    char bufferUDP[128], bufferTCP[4];
+    fd_set ready_set, current_set;
+
+    udp_fd = UDPsocket.fd;
+    tcp_fd = TCPsocket.fd;
+
+    int max_fd = std::max(udp_fd, tcp_fd);
+
+    while (true) {
+        FD_ZERO(&ready_set);
+        FD_SET(udp_fd, &ready_set);
+        FD_SET(tcp_fd, &ready_set);
+        write(1, "AAA", 4);
+
+        if (select(max_fd + 1, &ready_set, NULL, NULL, NULL) < 0) {
+            fprintf(stderr, "Unable to select.\n");
+            exit(EXIT_FAILURE);
         }
-        
-        // /* UDP request */
-        // if (FD_ISSET(udpfd, &rset)){
-        //     bzero(bufferUDP, 10);
-            
-        //     n = receiveUDP(socketUDP, bufferUDP);
-        //     if (n == FAIL){
-        //         handle_error(SERVER, SYS_CALL);
-        //     }
-            
-        //     handle_request(bufferUDP);
-        // }
+
+        if (FD_ISSET(tcp_fd, &ready_set)) {
+            addrlen = sizeof(addr);
+            if ((new_fd = accept(tcp_fd, (struct sockaddr*)&addr, &addrlen)) == -1) {
+                fprintf(stderr, "Unable to accept.\n");
+                exit(EXIT_FAILURE);
+            }
+
+            n = receiveTCP(new_fd, bufferTCP, 4);
+            write(1, bufferTCP, n);
+            close(new_fd);
+        }
+
+        if (FD_ISSET(udp_fd, &ready_set)) {
+            addrlen = sizeof(addr);
+            if ((n = recvfrom(udp_fd, bufferUDP, 128, 0, (struct sockaddr*)&addr, &addrlen)) < 0) {
+                fprintf(stderr, "Unable to receive message through UDP.\n");
+                exit(EXIT_FAILURE);
+            }
+            write(1, bufferUDP, n);
+            string jj = "jjboce\n";
+            if (sendto(udp_fd, jj.c_str(), sizeof(jj), 0, (struct sockaddr*)&addr, addrlen) < 0) {
+                fprintf(stderr, "Unable to send message through UDP.\n");
+                exit(EXIT_FAILURE);
+            }
+        }
     }
+
+    // while(1) {
+    //     addrlen = sizeof(addr);
+    //     if ((new_fd = accept(tcp_fd, (struct sockaddr*)&addr, &addrlen)) == -1) {
+    //         fprintf(stderr, "Unable to accept.\n");
+    //         exit(EXIT_FAILURE);
+    //     }
+
+    //     n = receiveTCP(new_fd, bufferTCP, 4);
+
+    //     write(1, bufferTCP, n);
+
+    //     close(new_fd);
+    // }
+
+    // int udp_fd;
+    // struct addrinfo hints, *res;
+    // socklen_t addrlen;
+    // struct sockaddr_in addr;
+    // char bufferUDP[128];
+
+    // udp_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    // if (udp_fd == -1) {
+    //     fprintf(stderr, "Unable to create socket.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // bzero(&hints, sizeof(hints));
+    // hints.ai_family = AF_INET;
+    // hints.ai_socktype = SOCK_DGRAM;
+    // hints.ai_flags = AI_PASSIVE;
+
+    // int errcode = getaddrinfo(NULL, gsport.c_str(), &hints, &res);
+    // if (errcode == -1) {
+    //     fprintf(stderr, "Unable to get address info.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // int n = bind(udp_fd, res->ai_addr, res->ai_addrlen);
+    // if (n == -1) {
+    //     fprintf(stderr, "Unable to bind.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // while(1) {
+    //     addrlen = sizeof(addr);
+
+    //     n = recvfrom(udp_fd, bufferUDP, 128, 0, (struct sockaddr*)&addr, &addrlen);
+
+    //     write(1, bufferUDP, n);
+    // }
+
 }
 
 int Server::create_dir(char * dirname) {

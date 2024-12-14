@@ -37,8 +37,8 @@ class Server {
 
     private:
         void connection_input(int argc, char** argv);
-        void setup_UDP(string ip);
-        void setup_TCP(string ip);
+        void setup_UDP(string port);
+        void setup_TCP(string port);
         void receive_request();
         void handle_error();
         int create_dir(char* dirname);
