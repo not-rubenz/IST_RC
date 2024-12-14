@@ -50,11 +50,7 @@ void Player::connection_input(int argc, char** argv) {
 
 void Player::connect_UDP(string ip, string port) {
     int fd,errcode;
-    ssize_t n;
-    socklen_t addrlen;
     struct addrinfo hints, *res;
-    struct sockaddr_in addr;
-    char buffer[128];
 
     fd = socket(AF_INET, SOCK_DGRAM, 0); //UDP socket
     if(fd == -1) {
@@ -80,10 +76,7 @@ void Player::connect_UDP(string ip, string port) {
 void Player::connect_TCP(string ip, string port) {
     int fd,errcode;
     ssize_t n;
-    socklen_t addrlen;
     struct addrinfo hints, *res;
-    struct sockaddr_in addr;
-    char buffer[128];
 
     fd = socket(AF_INET, SOCK_STREAM, 0); //TCP socket
     if(fd == -1) {
