@@ -15,6 +15,7 @@
 #define SCOREBOARD "scoreboard"
 #define SB "sb"
 #define QUIT "quit"
+#define EXIT "exit"
 #define DEBUG "debug"
 
 #define MAX_TRIALS 8

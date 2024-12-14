@@ -9,9 +9,7 @@ Player::Player(int argc, char** argv) {
     tries = 1;
 
     connection_input(argc, argv);
-
     connect_UDP(gsip, gsport);
-    // connect_TCP(gsip, gsport);
     command_input();
 }
 
@@ -129,6 +127,14 @@ void Player::command_input() {
             score_board_cmd();
         }
 
+        else if (!strcmp(command, QUIT)) {
+            quit_cmd();
+        }
+
+        else if (!strcmp(command, EXIT)) {
+            exit_cmd();
+        }
+
         else if (!strcmp(command, DEBUG)) {
             debug_cmd(args);
         }
@@ -208,6 +214,29 @@ void Player::score_board_cmd() {
 
 }
 
+void Player::quit_cmd() {
+    ssize_t ret;
+    string message;
+    char buffer[128];
+    if (!strcmp(plid.c_str(), "")) {
+        message = "QUT\n";
+    } else {
+        message = "QUT " + plid + '\n';
+    }
+
+    ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
+    if (ret == -1) exit(-1);
+
+    ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
+    if (ret == -1) exit(-1);
+    write(1, buffer, ret);
+}
+
+void Player::exit_cmd() {
+    quit_cmd();
+    player_terminate();
+}
+
 void Player::debug_cmd(string line) {
     ssize_t ret;
     string message = "DBG" + line + '\n';
@@ -228,12 +257,12 @@ void Player::debug_cmd(string line) {
 }
 
 void Player::tcp_terminate() {
+    freeaddrinfo(TCPsocket.res);
     close(TCPsocket.fd);
 }
 
 void Player::player_terminate() {
     freeaddrinfo(UDPsocket.res);
-    freeaddrinfo(TCPsocket.res);
     close(UDPsocket.fd);
     exit(0);
 }

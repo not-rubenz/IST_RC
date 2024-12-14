@@ -42,6 +42,8 @@ class Player {
         void try_cmd(string line);
         void show_trials_cmd();
         void score_board_cmd();
+        void quit_cmd();
+        void exit_cmd();
         void player_terminate();
         void debug_cmd(string line);
         void tcp_terminate();
