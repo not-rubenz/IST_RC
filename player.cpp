@@ -179,9 +179,10 @@ void Player::try_cmd(string line) {
 }
 
 void Player::show_trials_cmd() {
+    int fd;
     ssize_t ret;
     string message = "STR " + plid + "\n";
-    char buffer[2048];
+    char buffer[2048], status[4], Fname[24], Fsize[3];
 
     connect_TCP(gsip, gsport);
 
@@ -192,14 +193,30 @@ void Player::show_trials_cmd() {
     if (ret == -1) exit(-1);
 
     sendTCP(1, buffer, ret);
+
+    if (strcmp(buffer, "ERR")) {
+        sscanf(buffer, "RST %s", status);
+        if (!strcmp(status, "ACT") || !strcmp(status, "FIN")) {
+            sscanf(buffer, "RST %s %s %s", status, Fname, Fsize);
+            string buffer_string = string(buffer);
+            buffer_string.erase(0, buffer_string.find("\n") + 1);
+            if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+                fprintf(stderr, "Error opening file.\n");
+                exit(EXIT_FAILURE);
+            }
+            sendTCP(fd, buffer_string.c_str(), atoi(Fsize));
+            close(fd);
+        }
+    }
     tcp_terminate();
 }
 
 
 void Player::score_board_cmd() {
+    int fd;
     ssize_t ret;
     string message = "SSB\n";
-    char buffer[2048];
+    char buffer[2048], status[4], Fname[24], Fsize[4];
 
     connect_TCP(gsip, gsport);
 
@@ -210,6 +227,21 @@ void Player::score_board_cmd() {
     if (ret == -1) exit(-1);
 
     sendTCP(1, buffer, ret);
+
+    if (strcmp(buffer, "ERR")) {
+        sscanf(buffer, "RSS %s", status);
+        if (!strcmp(status, "OK")) {
+            sscanf(buffer, "RSS %s %s %s", status, Fname, Fsize);
+            string buffer_string = string(buffer);
+            buffer_string.erase(0, buffer_string.find("\n") + 1);
+            if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+                fprintf(stderr, "Error opening file.\n");
+                exit(EXIT_FAILURE);
+            }
+            sendTCP(fd, buffer_string.c_str(), atoi(Fsize));
+            close(fd);
+        }
+    }
     tcp_terminate();
 
 }

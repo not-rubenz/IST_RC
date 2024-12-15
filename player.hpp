@@ -13,6 +13,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <fcntl.h>
 
 using std::string;
 using std::vector;
