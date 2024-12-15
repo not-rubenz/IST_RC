@@ -189,6 +189,7 @@ void Server::handle_request(char* requestBuffer) {
     string args;
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
+    // char file_name[];
 
     if (request_size <= 2) {
         handle_error(INVALID_INPUT);
@@ -197,6 +198,8 @@ void Server::handle_request(char* requestBuffer) {
     if (!valid_PLID(request[1])) {
         handle_error(INVALID_PLID);
     }
+
+    // int ret = FindLastGame(request[1].c_str(), file_name);
 
     const char* command = request[0].c_str();
 
@@ -208,8 +211,8 @@ void Server::handle_request(char* requestBuffer) {
     }
 
     else if (!strcmp(command, TRY_REQUEST)) {
-        if (request_size != 7 || valid_color(request[2]) || valid_color(request[3])
-            || valid_color(request[4]) || valid_color(request[5])) {
+        if (request_size != 7 || !valid_color(request[2]) || !valid_color(request[3])
+            || !valid_color(request[4]) || !valid_color(request[5])) {
                 handle_error(INVALID_TRY_ARG);
         }
         try_colors(request);
@@ -342,6 +345,30 @@ void Server::try_colors(vector<string> request) {
     dprintf(fd, "T: %s %d %d\n", guess, nB, nW); //时间还没做
 
     close(fd);
+}
+
+
+int FindLastGame (char *PLID, char *fname) {
+    struct dirent ** filelist;
+    int n_entries, found;
+    char dirname [20];
+
+    sprintf(dirname, "GAMES/%s/",PLID);
+    n_entries = scandir (dirname, &filelist, 0, alphasort);
+    found=0;
+    if (n_entries <= 0)
+        return (0);
+    else {
+        while (n_entries --) {
+            if(filelist [n_entries]->d_name [0]!= '.' && ! found) {
+                sprintf(fname, "GAMES/%s/%s",PLID, filelist [n_entries]->d_name); 
+                found = 1;
+            }
+            free(filelist [n_entries]);
+        }
+        free(filelist);
+    }
+    return (found);
 }
 
 int main(int argc, char** argv) {

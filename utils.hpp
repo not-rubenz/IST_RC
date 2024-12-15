@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <algorithm>
 #include <cctype>
+#include "constants.hpp"
 
 using std::string;
 using std::vector;

@@ -79,7 +79,7 @@ int valid_PLID(string PLID) {
 }
 
 int valid_time(string time) {
-    return isNumber(time) && stoi(time) <= 600;
+    return isNumber(time) && stoi(time) <= MAX_PLAYTIME;
 }
 
 int valid_color(string color) {

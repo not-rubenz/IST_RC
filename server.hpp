@@ -16,6 +16,7 @@
 #include <vector>
 #include <algorithm>
 #include <fcntl.h>
+#include <dirent.h>
 
 using std::string;
 using std::vector;
@@ -47,6 +48,7 @@ class Server {
         void start_game(vector<string> request);
         void try_colors(vector<string> request);
         int create_dir(const char* dirname);
+        int FindLastGame(const char *PLID, char *fname);
 };
 
 #endif
