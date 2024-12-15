@@ -15,6 +15,8 @@
 #include <iostream>
 #include <vector>
 #include <cerrno>
+#include <algorithm>
+#include <cctype>
 
 using std::string;
 using std::vector;
@@ -23,5 +25,8 @@ vector<string> split_line(string line);
 int sendTCP(int fd, string message, int size);
 int receiveTCP(int fd, char* message, int size);
 int FindIndex(const char array[], char value, int size);
+int valid_PLID(string PLID);
+int valid_time(string time);
+int valid_color(string color);
 
 #endif

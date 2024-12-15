@@ -28,6 +28,12 @@
 // #define EXIT_REQUEST ""
 #define DEBUG_REQUEST "DBG"
 
+/////////////////////////////////////////////////
+#define INVALID_INPUT 100
+#define INVALID_PLID 101
+#define INVALID_CMD_SYNTAX 102
+#define INVALID_START_ARG 103
+#define INVALID_TRY_ARG 104
 
 #define MAX_TRIALS 8
 

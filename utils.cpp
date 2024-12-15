@@ -69,3 +69,22 @@ int FindIndex(const char array[], char value, int size) {
     }
     return -1;
 }
+
+bool isNumber(const std::string& str) {
+    return !str.empty() && std::all_of(str.begin(), str.end(), ::isdigit);
+}
+
+int valid_PLID(string PLID) {
+    return PLID.length() == 6;
+}
+
+int valid_time(string time) {
+    return isNumber(time) && stoi(time) <= 600;
+}
+
+int valid_color(string color) {
+    if (color.length() != 1) return 0;
+
+    char c = color[0];
+    return c == 'R' || c == 'G' || c == 'B' || c == 'Y' || c == 'O' || c == 'P';
+}

@@ -190,13 +190,28 @@ void Server::handle_request(char* requestBuffer) {
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
 
+    if (request_size <= 2) {
+        handle_error(INVALID_INPUT);
+    }
+
+    if (!valid_PLID(request[1])) {
+        handle_error(INVALID_PLID);
+    }
+
     const char* command = request[0].c_str();
 
     if (!strcmp(command, START_REQUEST)) {
+        if (request_size != 3 || !valid_time(request[2])) {
+            handle_error(INVALID_START_ARG);
+        }
         start_game(request);
     }
 
     else if (!strcmp(command, TRY_REQUEST)) {
+        if (request_size != 7 || valid_color(request[2]) || valid_color(request[3])
+            || valid_color(request[4]) || valid_color(request[5])) {
+                handle_error(INVALID_TRY_ARG);
+        }
         try_colors(request);
     }
 
@@ -215,11 +230,23 @@ void Server::handle_request(char* requestBuffer) {
     else if (!strcmp(command, DEBUG_REQUEST)) {
 
     }
+    else {
+        handle_error(INVALID_CMD_SYNTAX);
+    }
 
 }
 
-void Server::handle_error() {
+void Server::handle_error(int errcode) {
+    switch (errcode) {
+        case INVALID_START_ARG:
+            /* code */
+            break;
+        case INVALID_TRY_ARG:
 
+            break;
+        default:
+            break;
+    }
 }
 
 void Server::start_game(vector<string> request) {
