@@ -22,5 +22,6 @@ using std::vector;
 vector<string> split_line(string line);
 int sendTCP(int fd, string message, int size);
 int receiveTCP(int fd, char* message, int size);
+int FindIndex(const char array[], char value, int size);
 
 #endif

@@ -58,3 +58,14 @@ int receiveTCP(int fd, char *message, int size) {
     }
     return bytes_read;
 }
+
+int FindIndex(const char array[], char value, int size) {
+    int index = 0;
+    while (index < size) {
+        if (array[index] == value) {
+            return index;
+        }
+        ++index;
+    }
+    return -1;
+}

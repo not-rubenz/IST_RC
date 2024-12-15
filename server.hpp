@@ -45,6 +45,7 @@ class Server {
         void handle_request(char* requestBuffer);
         void handle_error();
         void start_game(vector<string> request);
+        void try_colors(vector<string> request);
         int create_dir(const char* dirname);
 };
 
