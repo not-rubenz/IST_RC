@@ -7,8 +7,7 @@ Server::Server(int argc, char** argv) {
     verbose = 0;
 
     connection_input(argc, argv);
-    setup_UDP(gsport);
-    setup_TCP(gsport);
+    setup_server(gsport);
     receive_request();
 }
 
@@ -105,6 +104,20 @@ void Server::setup_TCP(string port) {
 
 }
 
+void Server::setup_server(string gsport) {
+
+    setup_UDP(gsport);
+    setup_TCP(gsport);
+
+    if (!create_dir("GAMES")) {
+        exit(EXIT_FAILURE);
+    }
+
+    if (!create_dir("SCORES")) {
+        exit(EXIT_FAILURE);
+    }
+}
+
 void Server::receive_request(){
 
     // int tcp_fd, new_tcp_fd;
@@ -177,10 +190,15 @@ void Server::receive_request(){
 
         if (FD_ISSET(udp_fd, &ready_set)) {
             addrlen = sizeof(addr);
+            bzero(bufferUDP, 128);
+
             if ((n = recvfrom(udp_fd, bufferUDP, 128, 0, (struct sockaddr*)&addr, &addrlen)) < 0) {
                 fprintf(stderr, "Unable to receive message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
+
+            handle_request(bufferUDP);
+
             write(1, bufferUDP, n);
             string jj = "jjboce\n";
             if (sendto(udp_fd, jj.c_str(), sizeof(jj), 0, (struct sockaddr*)&addr, addrlen) < 0) {
@@ -243,7 +261,7 @@ void Server::receive_request(){
 
 }
 
-int Server::create_dir(char * dirname) {
+int Server::create_dir(const char* dirname) {
     if (mkdir(dirname, 0700) == -1){
         fprintf(stderr, "Unable to create %s directory.\n", dirname);
         return -1;
@@ -251,10 +269,85 @@ int Server::create_dir(char * dirname) {
     return 1;
 }
 
+void Server::handle_request(char* requestBuffer) {
+    string args;
+    vector<string> request = split_line(requestBuffer);
+    int request_size = request.size();
+
+    const char* command = request[0].c_str();
+
+    if (!strcmp(command, START_REQUEST)) {
+        start_game(request);
+    }
+
+    else if (!strcmp(command, TRY_REQUEST)) {
+
+    }
+
+    else if (!strcmp(command, SHOW_TRIAL_REQUEST)) {
+
+    }
+
+    else if (!strcmp(command, SCOREBOARD_REQUEST)) {
+
+    }
+
+    else if (!strcmp(command, QUIT_REQUEST)) {
+
+    }
+
+    else if (!strcmp(command, DEBUG_REQUEST)) {
+
+    }
+
+}
 
 void Server::handle_error() {
 
 }
+
+void Server::start_game(vector<string> request) {
+    string PLID = request[1];
+    string max_playtime = request[2];
+    string player_dir = "GAMES/" + PLID;
+    string file_name = "GAME_" + PLID + ".txt";
+    int fd;
+
+    if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+        fprintf(stderr, "Error opening file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    create_dir(player_dir.c_str());
+
+    const char valid_colors[] = {'R', 'G', 'B', 'Y', 'O', 'P'};
+    const char mode = 'P'; 
+    char code[5];    
+    srand(time(nullptr));
+    for (int i = 0; i < 4; ++i) {
+        code[i] = valid_colors[rand() % 6]; 
+    }
+    code[4] = '\0';
+
+    time_t now = time(nullptr);
+    struct tm *local_time = localtime(&now);
+    char date[11], time_str[9];
+    strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
+    strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time); 
+
+    dprintf(fd, "%s %c %s %s %s %s %ld\n",
+            PLID.c_str(),     
+            mode,             
+            code,             
+            max_playtime.c_str(), 
+            date,           
+            time_str, 
+            now);
+
+
+    close(fd);
+}
+
 
 int main(int argc, char** argv) {
 

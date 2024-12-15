@@ -7,7 +7,9 @@
 
 #define MAX_LINE_SIZE 128
 #define MAX_PLAYTIME 600
+#define MAX_COMMAND_SIZE 4
 
+///////////////////////////////////////////////////
 #define START "start"
 #define TRY "try"
 #define SHOW_TRIAL "show_trial"
@@ -17,6 +19,15 @@
 #define QUIT "quit"
 #define EXIT "exit"
 #define DEBUG "debug"
+///////////////////////////////////////////////////
+#define START_REQUEST "SNG"
+#define TRY_REQUEST "TRY"
+#define SHOW_TRIAL_REQUEST "STR"
+#define SCOREBOARD_REQUEST "SSB"
+#define QUIT_REQUEST "QUT"
+// #define EXIT_REQUEST ""
+#define DEBUG_REQUEST "DBG"
+
 
 #define MAX_TRIALS 8
 

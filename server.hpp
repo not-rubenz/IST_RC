@@ -15,6 +15,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <fcntl.h>
 
 using std::string;
 using std::vector;
@@ -39,9 +40,12 @@ class Server {
         void connection_input(int argc, char** argv);
         void setup_UDP(string port);
         void setup_TCP(string port);
+        void setup_server(string port);
         void receive_request();
+        void handle_request(char* requestBuffer);
         void handle_error();
-        int create_dir(char* dirname);
+        void start_game(vector<string> request);
+        int create_dir(const char* dirname);
 };
 
 #endif
