@@ -48,7 +48,8 @@ class Server {
         void start_game(vector<string> request);
         void try_colors(vector<string> request);
         int create_dir(const char* dirname);
-        int FindLastGame(const char *PLID, char *fname);
+        int FindGame(string PLID, char* fname);
+        int FindLastGame(char *PLID, char *fname);
 };
 
 #endif

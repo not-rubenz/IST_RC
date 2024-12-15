@@ -189,23 +189,30 @@ void Server::handle_request(char* requestBuffer) {
     string args;
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
-    // char file_name[];
+    char file_name[20];
 
     if (request_size <= 2) {
         handle_error(INVALID_INPUT);
+        return;
     }
 
     if (!valid_PLID(request[1])) {
         handle_error(INVALID_PLID);
+        return;
     }
 
-    // int ret = FindLastGame(request[1].c_str(), file_name);
+    int ret = FindGame(request[1].c_str(), file_name);
 
     const char* command = request[0].c_str();
 
     if (!strcmp(command, START_REQUEST)) {
         if (request_size != 3 || !valid_time(request[2])) {
             handle_error(INVALID_START_ARG);
+            return;
+        }
+        else if (ret) {
+            handle_error(ONGOING_GAME);
+            return;
         }
         start_game(request);
     }
@@ -213,7 +220,8 @@ void Server::handle_request(char* requestBuffer) {
     else if (!strcmp(command, TRY_REQUEST)) {
         if (request_size != 7 || !valid_color(request[2]) || !valid_color(request[3])
             || !valid_color(request[4]) || !valid_color(request[5])) {
-                handle_error(INVALID_TRY_ARG);
+            handle_error(INVALID_TRY_ARG);
+            return;
         }
         try_colors(request);
     }
@@ -241,11 +249,13 @@ void Server::handle_request(char* requestBuffer) {
 
 void Server::handle_error(int errcode) {
     switch (errcode) {
+        case INVALID_INPUT:
+        case INVALID_PLID:
         case INVALID_START_ARG:
-            /* code */
-            break;
         case INVALID_TRY_ARG:
-
+            write(1, "ERR\n", 4);
+        case ONGOING_GAME:
+            write(1, "RSG NOK\n", 8);
             break;
         default:
             break;
@@ -256,7 +266,7 @@ void Server::start_game(vector<string> request) {
     string PLID = request[1];
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
-    string file_name = "GAME_" + PLID + ".txt";
+    string file_name = "GAMES/GAME_" + PLID + ".txt";
     int fd;
 
     if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
@@ -301,7 +311,7 @@ void Server::try_colors(vector<string> request) {
     string C3 = request[4];
     string C4 = request[5];
     string nT = request[6];
-    string file_name = "GAME_" + PLID + ".txt";
+    string file_name = "GAMES/GAME_" + PLID + ".txt";
     char buffer[128];
     int fd;
 
@@ -347,20 +357,47 @@ void Server::try_colors(vector<string> request) {
     close(fd);
 }
 
+// Find GAME_(PLID).txt
+int Server::FindGame(string PLID, char *fname) {
+    struct dirent ** filelist;
+    int n_entries, found;
+    char dirname [20];
+    string file_name = "GAME_" + PLID + ".txt";
 
-int FindLastGame (char *PLID, char *fname) {
+    sprintf(dirname, "GAMES/");
+    n_entries = scandir (dirname, &filelist, 0, alphasort);
+    found = 0;  
+
+    if (n_entries <= 0) {
+        return 0;
+    }
+    else {
+        while (n_entries--) {
+            if (!strcmp(filelist[n_entries]->d_name, file_name.c_str()) && !found) {
+                fname = file_name.data();
+                found = 1;
+            }
+            free(filelist [n_entries]);
+        }
+        free(filelist);
+    }
+    return (found);
+}
+
+
+int Server::FindLastGame(char* PLID, char *fname) {
     struct dirent ** filelist;
     int n_entries, found;
     char dirname [20];
 
     sprintf(dirname, "GAMES/%s/",PLID);
     n_entries = scandir (dirname, &filelist, 0, alphasort);
-    found=0;
+    found = 0;
     if (n_entries <= 0)
         return (0);
     else {
         while (n_entries --) {
-            if(filelist [n_entries]->d_name [0]!= '.' && ! found) {
+            if(filelist [n_entries]->d_name [0]!= '.' && !found) {
                 sprintf(fname, "GAMES/%s/%s",PLID, filelist [n_entries]->d_name); 
                 found = 1;
             }
