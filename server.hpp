@@ -47,6 +47,7 @@ class Server {
         string handle_error(int errcode);
         string start_game(vector<string> request);
         string try_colors(vector<string> request);
+        string debug_mode(vector<string> request);
         int create_dir(const char* dirname);
         int FindGame(string PLID, const char *fname);
         int FindLastGame(char *PLID, char *fname);

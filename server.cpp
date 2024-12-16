@@ -171,8 +171,9 @@ void Server::receive_request(){
             // }
 
             string message = handle_request(bufferUDP);
+            printf(message.c_str());
 
-            if (sendto(udp_fd, message.c_str(), sizeof(message), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
+            if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
                 fprintf(stderr, "Unable to send message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
@@ -241,7 +242,15 @@ string Server::handle_request(char* requestBuffer) {
     }
 
     else if (!strcmp(command, DEBUG_REQUEST)) {
-
+        if (!strcmp(command, DEBUG_REQUEST)) {
+            if (request_size != 7 || !valid_time(request[2])) {
+                return handle_error(INVALID_DEBUG_ARG);
+            }
+            else if (ret) {
+                return handle_error(ONGOING_GAME);
+            }
+            return debug_mode(request);
+        }
     }
     else {
         return handle_error(INVALID_CMD_SYNTAX);
@@ -256,6 +265,7 @@ string Server::handle_error(int errcode) {
         case INVALID_PLID:
         case INVALID_START_ARG:
         case INVALID_TRY_ARG:
+        case INVALID_DEBUG_ARG:
             write(1, "ERR\n", 4);
             message = "ERR\n";
             return message;
@@ -397,6 +407,56 @@ string Server::try_colors(vector<string> request) {
     return message;
 }
 
+string Server::debug_mode(vector<string> request) {
+    string PLID = request[1];
+    string max_playtime = request[2];
+    string player_dir = "GAMES/" + PLID;
+    string file_name = "GAMES/GAME_" + PLID + ".txt";
+    char buffer[128];
+    int fd;
+
+    if (!valid_color(request[3]) || !valid_color(request[4])
+        || !valid_color(request[5]) || !valid_color(request[6])) {
+            return handle_error(INVALID_COLOR);
+    }
+
+    if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+        fprintf(stderr, "Error opening file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    create_dir(player_dir.c_str());
+
+    const char mode = 'D';
+    char code[5];
+    code[0] = request[3][0];
+    code[1] = request[4][0];
+    code[2] = request[5][0];
+    code[3] = request[6][0];
+    code[4] = '\0';
+
+    time_t now = time(nullptr);
+    struct tm *local_time = localtime(&now);
+    char date[11], time_str[9];
+    strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
+    strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time); 
+
+    dprintf(fd, "%s %c %s %s %s %s %ld\n",
+            PLID.c_str(),     
+            mode,             
+            code,             
+            max_playtime.c_str(), 
+            date,           
+            time_str, 
+            now);
+
+    close(fd);
+
+    string message = "RDB OK\n";
+
+    return message;
+}
+
 // Find GAME_(PLID).txt
 int Server::FindGame(string PLID, const char *fname) {
     struct dirent ** filelist;
@@ -414,7 +474,7 @@ int Server::FindGame(string PLID, const char *fname) {
     else {
         while (n_entries--) {
             if (!strcmp(filelist[n_entries]->d_name, file_name.c_str()) && !found) {
-                fname = file_name.data();
+                fname = file_name.c_str();
                 found = 1;
             }
             free(filelist [n_entries]);
