@@ -171,7 +171,6 @@ void Server::receive_request(){
             // }
 
             string message = handle_request(bufferUDP);
-            printf(message.c_str());
 
             if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
                 fprintf(stderr, "Unable to send message through UDP.\n");
@@ -274,18 +273,25 @@ string Server::handle_error(int errcode) {
             message = "RSG NOK\n";
             return message;
         case DUPLICATED_GUESS:
+            message = "RTR DUP\n";
+            return message;
         case INVALID_TRIAL:
+            message = "RTR INV\n";
+            return message;
         case OUT_OF_CONTEXT:
             message = "RTR NOK\n";
             return message;
         case OUT_OF_GUESSES:
+            message = "RTR ENT ";
+            return message;
         case OUT_OF_TIME:
+            message = "RTR ETM ";
+            return message;
         case INVALID_COLOR:
             message = "RTR ERR\n";
             return message;
-        default:
-            break;
     }
+    return NULL;
 }
 
 string Server::start_game(vector<string> request) {
@@ -293,6 +299,7 @@ string Server::start_game(vector<string> request) {
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
+    GAME new_game;
     int fd;
 
     if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
@@ -329,8 +336,14 @@ string Server::start_game(vector<string> request) {
 
     close(fd);
 
-    string message = "SNG OK\n";
+    new_game.mode = mode;
+    new_game.colors = string(code);
+    new_game.max_playtime = atoi(max_playtime.c_str());
+    new_game.start_time = now;
+    new_game.n_tries = 0;
+    games[PLID] = new_game;
 
+    string message = "SNG OK\n";
     return message;
 }
 
@@ -344,10 +357,41 @@ string Server::try_colors(vector<string> request) {
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     char buffer[128];
     int fd;
+    GAME current_game = games[PLID];
+    string target = current_game.colors;
+    string guess = C1 + C2 + C3 + C4;
+
+    time_t now = time(nullptr);
+    int time_elapsed = (int) difftime(now, current_game.start_time);
+
+    if (time_elapsed >= current_game.max_playtime) {
+        string message = handle_error(OUT_OF_TIME) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
+        return message;
+    }
+
+    if (current_game.n_tries == MAX_TRIALS - 1) {
+        string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
+        return message;
+    }
 
     if (!valid_color(request[2]) || !valid_color(request[3])
         || !valid_color(request[4]) || !valid_color(request[5])) {
             return handle_error(INVALID_COLOR);
+    }
+    
+    // ？？？？一坨屎 这是可能发生的吗？？
+    // if (current_game.n_tries == atoi(nT.c_str()) - 1) {
+    //     if (guess.compare(current_game.tries.back())) {
+    //         return handle_error(INVALID_TRIAL);
+    //     } else {
+
+    //     }
+    // }
+
+    for (string s: current_game.tries) {
+        if (!s.compare(guess)) {
+            return handle_error(DUPLICATED_GUESS);
+        }
     }
 
     if ((fd = open(file_name.c_str(), O_RDWR, 0755)) < 0) {
@@ -356,18 +400,6 @@ string Server::try_colors(vector<string> request) {
     }
 
     int n = receiveTCP(fd, buffer, 128);
-
-    char plid[7], mode[2], target[5];
-    int max_time;
-    time_t start_time;
-    sscanf(buffer, "%s %s %s %d %*d-%*d-%*d %*d:%*d:%*d %ld", plid, 
-                                                    mode, 
-                                                    target,
-                                                    &max_time,
-                                                    &start_time);
-
-    string guess_aux = C1 + C2 + C3 + C4;
-    const char *guess = guess_aux.c_str();
 
     int nB = 0; // Letters in the correct position
     int nW = 0;   // Correct letters in the wrong position
@@ -389,19 +421,17 @@ string Server::try_colors(vector<string> request) {
     for (size_t i = 0; i < 4; ++i) {
         int guess_index = FindIndex(valid_colors, guess[i], 6);
         if (target[i] != guess[i] && target_counts[guess_index] > 0) {
-            ++nW;         // Found a correct letter in the wrong position
+            nW++;         // Found a correct letter in the wrong position
             target_counts[guess_index]--; // Decrement the available count
         }
     }
 
-    time_t now = time(nullptr);
-
-    int time_left = (int) difftime(now, start_time);
-
-    dprintf(fd, "T: %s %d %d %d\n", guess, nB, nW, time_left); //时间还没做
+    dprintf(fd, "T: %s %d %d %d\n", guess.c_str(), nB, nW, time_elapsed);
 
     close(fd);
 
+    games[PLID].n_tries++;
+    games[PLID].tries.push_back(guess);
     string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
     // string message = "RTR OK\n";
     return message;

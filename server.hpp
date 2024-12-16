@@ -17,10 +17,10 @@
 #include <algorithm>
 #include <fcntl.h>
 #include <dirent.h>
+#include <map>
 
 using std::string;
 using std::vector;
-
 
 typedef struct SOCKET {
     int fd;
@@ -28,11 +28,22 @@ typedef struct SOCKET {
     struct sockaddr_in addr;
 } SOCKET;
 
+typedef struct GAME {
+    string plid;
+    char mode;
+    string colors;
+    int max_playtime;
+    time_t start_time;
+    int n_tries;
+    vector<string> tries;
+} GAME;
+
 class Server {
     string gsip, gsport;
     int verbose;
     SOCKET UDPsocket;
     SOCKET TCPsocket;
+    std::map<string, GAME> games;
 
     public:
         Server(int argc, char** argv);

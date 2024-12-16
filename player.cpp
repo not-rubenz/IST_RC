@@ -168,7 +168,7 @@ void Player::try_cmd(string line) {
     ssize_t ret;
     string message = "TRY " + plid + line + ' ' + std::to_string(tries) +'\n';
     char buffer[128];
-
+    
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) exit(-1);
 
@@ -178,7 +178,8 @@ void Player::try_cmd(string line) {
 
     char cmd[4], status[4];
     sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(cmd, "RTR") & !strcmp(cmd, "OK")) {
+    if (!strcmp(cmd, "RTR") & !strcmp(status, "OK")) {
+        sscanf(buffer, "%*s %*s %d", &tries);
         tries++;
     }
 }
