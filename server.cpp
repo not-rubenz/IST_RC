@@ -442,6 +442,7 @@ string Server::debug_mode(vector<string> request) {
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
+    GAME new_game;
     char buffer[128];
     int fd;
 
@@ -481,6 +482,13 @@ string Server::debug_mode(vector<string> request) {
             now);
 
     close(fd);
+    
+    new_game.mode = mode;
+    new_game.colors = string(code);
+    new_game.max_playtime = atoi(max_playtime.c_str());
+    new_game.start_time = now;
+    new_game.n_tries = 0;
+    games[PLID] = new_game;
 
     string message = "RDB OK\n";
 

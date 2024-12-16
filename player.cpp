@@ -6,7 +6,7 @@
 Player::Player(int argc, char** argv) {
     plid = "";
     max_playtime = "";
-    tries = 1;
+    n_tries = 1;
 
     connection_input(argc, argv);
     connect_UDP(gsip, gsport);
@@ -166,7 +166,7 @@ void Player::start_cmd(string line) {
 
 void Player::try_cmd(string line) {
     ssize_t ret;
-    string message = "TRY " + plid + line + ' ' + std::to_string(tries) +'\n';
+    string message = "TRY " + plid + line + ' ' + std::to_string(n_tries) +'\n';
     char buffer[128];
     
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
@@ -179,8 +179,8 @@ void Player::try_cmd(string line) {
     char cmd[4], status[4];
     sscanf(buffer, "%s %s", cmd, status);
     if (!strcmp(cmd, "RTR") & !strcmp(status, "OK")) {
-        sscanf(buffer, "%*s %*s %d", &tries);
-        tries++;
+        sscanf(buffer, "%*s %*s %d", &n_tries);
+        n_tries++;
     }
 }
 

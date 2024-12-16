@@ -27,7 +27,7 @@ class Player {
     string gsip, gsport;
     string plid;
     string max_playtime;
-    int tries;
+    int n_tries;
     SOCKET UDPsocket;
     SOCKET TCPsocket;
 
