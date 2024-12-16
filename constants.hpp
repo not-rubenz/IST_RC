@@ -42,6 +42,8 @@
 #define OUT_OF_GUESSES 110
 #define OUT_OF_TIME 111
 #define INVALID_COLOR 112
+#define INVALID_QUIT_ARG 113
+#define NO_ONGOING_GAME 114
 
 #define MAX_TRIALS 8
 

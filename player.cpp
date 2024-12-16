@@ -157,7 +157,9 @@ void Player::start_cmd(string line) {
 
     write(1, buffer, ret);
     
-    if (strcmp(buffer, "ERR\n")) {
+    char cmd[4], status[4];
+    sscanf(buffer, "%s %s", cmd, status);
+    if (!strcmp(cmd, "RSG") & !strcmp(status, "OK")) {
         plid = input[0];
         max_playtime = input[1];
     }

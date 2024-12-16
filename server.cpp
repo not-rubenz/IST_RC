@@ -237,7 +237,11 @@ string Server::handle_request(char* requestBuffer) {
     }
 
     else if (!strcmp(command, QUIT_REQUEST)) {
-
+        if (request_size != 2) {
+            return handle_error(INVALID_QUIT_ARG);
+        } else if (!ret) {
+            return handle_error(NO_ONGOING_GAME);
+        }
     }
 
     else if (!strcmp(command, DEBUG_REQUEST)) {
@@ -264,6 +268,7 @@ string Server::handle_error(int errcode) {
         case INVALID_PLID:
         case INVALID_START_ARG:
         case INVALID_TRY_ARG:
+        case INVALID_QUIT_ARG:
         case INVALID_DEBUG_ARG:
             write(1, "ERR\n", 4);
             message = "ERR\n";
@@ -289,6 +294,9 @@ string Server::handle_error(int errcode) {
             return message;
         case INVALID_COLOR:
             message = "RTR ERR\n";
+            return message;
+        case NO_ONGOING_GAME:
+            message = "RQT NOK\n";
             return message;
     }
     return NULL;
@@ -343,7 +351,7 @@ string Server::start_game(vector<string> request) {
     new_game.n_tries = 0;
     games[PLID] = new_game;
 
-    string message = "SNG OK\n";
+    string message = "RSG OK\n";
     return message;
 }
 
@@ -379,27 +387,26 @@ string Server::try_colors(vector<string> request) {
             return handle_error(INVALID_COLOR);
     }
     
-    // ？？？？一坨屎 这是可能发生的吗？？
-    // if (current_game.n_tries == atoi(nT.c_str()) - 1) {
-    //     if (guess.compare(current_game.tries.back())) {
-    //         return handle_error(INVALID_TRIAL);
-    //     } else {
-
-    //     }
-    // }
-
-    for (string s: current_game.tries) {
-        if (!s.compare(guess)) {
-            return handle_error(DUPLICATED_GUESS);
+    if (current_game.n_tries == atoi(nT.c_str()) & current_game.n_tries != 0) {
+        if (guess.compare(current_game.tries.back())) {
+            return handle_error(INVALID_TRIAL);
+        } else {
+            games[PLID].n_tries--;
         }
+    } else if (current_game.n_tries == atoi(nT.c_str()) - 1) {
+        for (string s: current_game.tries) {
+            if (!s.compare(guess)) {
+                return handle_error(DUPLICATED_GUESS);
+            }
+        }
+    } else {
+        return handle_error(INVALID_TRIAL);
     }
 
-    if ((fd = open(file_name.c_str(), O_RDWR, 0755)) < 0) {
+    if ((fd = open(file_name.c_str(), O_WRONLY | O_APPEND, 0755)) < 0) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
     }
-
-    int n = receiveTCP(fd, buffer, 128);
 
     int nB = 0; // Letters in the correct position
     int nW = 0;   // Correct letters in the wrong position
@@ -426,14 +433,19 @@ string Server::try_colors(vector<string> request) {
         }
     }
 
-    dprintf(fd, "T: %s %d %d %d\n", guess.c_str(), nB, nW, time_elapsed);
+    sprintf(buffer, "T: %s %d %d %d\n", guess.c_str(), nB, nW, time_elapsed);
+    sendTCP(fd, buffer, strlen(buffer));
 
     close(fd);
 
+    if (nB == 4) {
+        end_game(PLID);
+    }
+
     games[PLID].n_tries++;
     games[PLID].tries.push_back(guess);
+
     string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
-    // string message = "RTR OK\n";
     return message;
 }
 
@@ -442,7 +454,6 @@ string Server::debug_mode(vector<string> request) {
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
-    GAME new_game;
     char buffer[128];
     int fd;
 
@@ -482,17 +493,42 @@ string Server::debug_mode(vector<string> request) {
             now);
 
     close(fd);
-    
-    new_game.mode = mode;
-    new_game.colors = string(code);
-    new_game.max_playtime = atoi(max_playtime.c_str());
-    new_game.start_time = now;
-    new_game.n_tries = 0;
-    games[PLID] = new_game;
 
     string message = "RDB OK\n";
 
     return message;
+}
+
+string Server::quit_game(vector<string> request) {
+
+}
+
+void Server::end_game(string plid) {
+    int fd;
+    char buffer[32];
+    string file_name = "GAMES/GAME_" + plid + ".txt";
+    if ((fd = open(file_name.c_str(), O_WRONLY | O_APPEND, 0755)) < 0) {
+        fprintf(stderr, "Error opening file.\n");
+        exit(EXIT_FAILURE);
+    }
+    time_t now = time(nullptr);
+    struct tm *local_time = localtime(&now);
+    char date[11], time_str[9];
+    int time_elapsed = (int) difftime(now, games[plid].start_time);
+    strftime(date, sizeof(date), "%Y-%m-%d", local_time);
+    strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time);
+    sprintf(buffer, "%s %s %d\n", date, time_str, time_elapsed);
+    sendTCP(fd, buffer, strlen(buffer));
+    close(fd);
+
+    char date_aux[9], time_aux[7];
+    strftime(date_aux, sizeof(date_aux), "%Y%m%d", local_time);
+    strftime(time_aux, sizeof(time_aux), "%H%M%S", local_time);
+    string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + "_W.txt";
+    if (rename(file_name.c_str(), new_file_name.c_str()) < 0) {
+        fprintf(stderr, "Error renaming file.\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 // Find GAME_(PLID).txt
