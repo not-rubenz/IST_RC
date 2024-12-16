@@ -323,7 +323,14 @@ void Server::try_colors(vector<string> request) {
     int n = receiveTCP(fd, buffer, 128);
 
     char plid[7], mode[2], target[5];
-    sscanf(buffer, "%s %s %s", plid, mode, target);
+    int max_time;
+    time_t start_time;
+    sscanf(buffer, "%s %s %s %d %*d-%*d-%*d %*d:%*d:%*d %ld", plid, 
+                                                    mode, 
+                                                    target,
+                                                    &max_time,
+                                                    &start_time);
+
     string guess_aux = C1 + C2 + C3 + C4;
     const char *guess = guess_aux.c_str();
 
@@ -352,13 +359,17 @@ void Server::try_colors(vector<string> request) {
         }
     }
 
-    dprintf(fd, "T: %s %d %d\n", guess, nB, nW); //时间还没做
+    time_t now = time(nullptr);
+
+    int time_left = (int) difftime(now, start_time);
+
+    dprintf(fd, "T: %s %d %d %d\n", guess, nB, nW, time_left); //时间还没做
 
     close(fd);
 }
 
 // Find GAME_(PLID).txt
-int Server::FindGame(string PLID, char *fname) {
+int Server::FindGame(string PLID, const char *fname) {
     struct dirent ** filelist;
     int n_entries, found;
     char dirname [20];
