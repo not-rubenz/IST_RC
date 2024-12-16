@@ -43,10 +43,10 @@ class Server {
         void setup_TCP(string port);
         void setup_server(string port);
         void receive_request();
-        void handle_request(char* requestBuffer);
-        void handle_error(int errcode);
-        void start_game(vector<string> request);
-        void try_colors(vector<string> request);
+        string handle_request(char* requestBuffer);
+        string handle_error(int errcode);
+        string start_game(vector<string> request);
+        string try_colors(vector<string> request);
         int create_dir(const char* dirname);
         int FindGame(string PLID, const char *fname);
         int FindLastGame(char *PLID, char *fname);

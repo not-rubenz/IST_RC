@@ -175,7 +175,12 @@ void Player::try_cmd(string line) {
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
     if (ret == -1) exit(-1);
     write(1, buffer, ret);
-    tries++;
+
+    char cmd[4], status[4];
+    sscanf(buffer, "%s %s", cmd, status);
+    if (!strcmp(cmd, "RTR") & !strcmp(cmd, "OK")) {
+        tries++;
+    }
 }
 
 void Player::show_trials_cmd() {

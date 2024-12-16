@@ -122,7 +122,6 @@ void Server::receive_request(){
 
     int udp_fd, tcp_fd, new_fd, n;
     socklen_t addrlen;
-    struct sockaddr_in addr;
     char bufferUDP[128], bufferTCP[4];
     fd_set ready_set, current_set;
 
@@ -142,8 +141,8 @@ void Server::receive_request(){
         }
 
         if (FD_ISSET(tcp_fd, &ready_set)) {
-            addrlen = sizeof(addr);
-            if ((new_fd = accept(tcp_fd, (struct sockaddr*)&addr, &addrlen)) == -1) {
+            addrlen = sizeof(TCPsocket.addr);
+            if ((new_fd = accept(tcp_fd, (struct sockaddr*)&TCPsocket.addr, &addrlen)) == -1) {
                 fprintf(stderr, "Unable to accept.\n");
                 exit(EXIT_FAILURE);
             }
@@ -154,19 +153,26 @@ void Server::receive_request(){
         }
 
         if (FD_ISSET(udp_fd, &ready_set)) {
-            addrlen = sizeof(addr);
+            addrlen = sizeof(UDPsocket.addr);
             bzero(bufferUDP, 128);
 
-            if ((n = recvfrom(udp_fd, bufferUDP, 128, 0, (struct sockaddr*)&addr, &addrlen)) < 0) {
+            if ((n = recvfrom(udp_fd, bufferUDP, 128, 0, (struct sockaddr*)&UDPsocket.addr, &addrlen)) < 0) {
                 fprintf(stderr, "Unable to receive message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
             write(1, bufferUDP, n);
 
-            handle_request(bufferUDP);
+            // handle_request(bufferUDP);
 
-            string jj = "jjboce\n";
-            if (sendto(udp_fd, jj.c_str(), sizeof(jj), 0, (struct sockaddr*)&addr, addrlen) < 0) {
+            // string jj = "jjboce\n";
+            // if (sendto(udp_fd, jj.c_str(), sizeof(jj), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
+            //     fprintf(stderr, "Unable to send message through UDP.\n");
+            //     exit(EXIT_FAILURE);
+            // }
+
+            string message = handle_request(bufferUDP);
+
+            if (sendto(udp_fd, message.c_str(), sizeof(message), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
                 fprintf(stderr, "Unable to send message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
@@ -185,20 +191,18 @@ int Server::create_dir(const char* dirname) {
     return 1;
 }
 
-void Server::handle_request(char* requestBuffer) {
+string Server::handle_request(char* requestBuffer) {
     string args;
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
     char file_name[20];
 
     if (request_size <= 2) {
-        handle_error(INVALID_INPUT);
-        return;
+        return handle_error(INVALID_INPUT);
     }
 
     if (!valid_PLID(request[1])) {
-        handle_error(INVALID_PLID);
-        return;
+        return handle_error(INVALID_PLID);
     }
 
     int ret = FindGame(request[1].c_str(), file_name);
@@ -207,23 +211,21 @@ void Server::handle_request(char* requestBuffer) {
 
     if (!strcmp(command, START_REQUEST)) {
         if (request_size != 3 || !valid_time(request[2])) {
-            handle_error(INVALID_START_ARG);
-            return;
+            return handle_error(INVALID_START_ARG);
         }
         else if (ret) {
-            handle_error(ONGOING_GAME);
-            return;
+            return handle_error(ONGOING_GAME);
         }
-        start_game(request);
+        return start_game(request);
     }
 
     else if (!strcmp(command, TRY_REQUEST)) {
-        if (request_size != 7 || !valid_color(request[2]) || !valid_color(request[3])
-            || !valid_color(request[4]) || !valid_color(request[5])) {
-            handle_error(INVALID_TRY_ARG);
-            return;
+        if (request_size != 7) {
+            return handle_error(INVALID_TRY_ARG);
+        } else if (!ret) {
+            return handle_error(OUT_OF_CONTEXT);
         }
-        try_colors(request);
+        return try_colors(request);
     }
 
     else if (!strcmp(command, SHOW_TRIAL_REQUEST)) {
@@ -242,27 +244,41 @@ void Server::handle_request(char* requestBuffer) {
 
     }
     else {
-        handle_error(INVALID_CMD_SYNTAX);
+        return handle_error(INVALID_CMD_SYNTAX);
     }
 
 }
 
-void Server::handle_error(int errcode) {
+string Server::handle_error(int errcode) {
+    string message;
     switch (errcode) {
         case INVALID_INPUT:
         case INVALID_PLID:
         case INVALID_START_ARG:
         case INVALID_TRY_ARG:
             write(1, "ERR\n", 4);
+            message = "ERR\n";
+            return message;
         case ONGOING_GAME:
             write(1, "RSG NOK\n", 8);
-            break;
+            message = "RSG NOK\n";
+            return message;
+        case DUPLICATED_GUESS:
+        case INVALID_TRIAL:
+        case OUT_OF_CONTEXT:
+            message = "RTR NOK\n";
+            return message;
+        case OUT_OF_GUESSES:
+        case OUT_OF_TIME:
+        case INVALID_COLOR:
+            message = "RTR ERR\n";
+            return message;
         default:
             break;
     }
 }
 
-void Server::start_game(vector<string> request) {
+string Server::start_game(vector<string> request) {
     string PLID = request[1];
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
@@ -302,9 +318,13 @@ void Server::start_game(vector<string> request) {
 
 
     close(fd);
+
+    string message = "SNG OK\n";
+
+    return message;
 }
 
-void Server::try_colors(vector<string> request) {
+string Server::try_colors(vector<string> request) {
     string PLID = request[1];
     string C1 = request[2];
     string C2 = request[3];
@@ -314,6 +334,11 @@ void Server::try_colors(vector<string> request) {
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     char buffer[128];
     int fd;
+
+    if (!valid_color(request[2]) || !valid_color(request[3])
+        || !valid_color(request[4]) || !valid_color(request[5])) {
+            return handle_error(INVALID_COLOR);
+    }
 
     if ((fd = open(file_name.c_str(), O_RDWR, 0755)) < 0) {
         fprintf(stderr, "Error opening file.\n");
@@ -366,6 +391,10 @@ void Server::try_colors(vector<string> request) {
     dprintf(fd, "T: %s %d %d %d\n", guess, nB, nW, time_left); //时间还没做
 
     close(fd);
+
+    string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
+    // string message = "RTR OK\n";
+    return message;
 }
 
 // Find GAME_(PLID).txt
