@@ -60,6 +60,7 @@ class Server {
         string try_colors(vector<string> request);
         string debug_mode(vector<string> request);
         string quit_game(vector<string> request);
+        string show_trials(vector<string> request);
         void end_game(string plid, int status);
         int create_dir(const char* dirname);
         int FindGame(string PLID, const char *fname);

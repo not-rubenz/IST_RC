@@ -212,15 +212,14 @@ string Server::handle_request(char* requestBuffer) {
     if (!strcmp(command, START_REQUEST)) {
         if (request_size != 3 || !valid_time(request[2])) {
             return handle_error(INVALID_START_ARG);
-        // }
-        // else if (!ret) {
-        //     time_t now = time(nullptr);
-        //     int time_elapsed = (int) difftime(now, games[request[1]].start_time);
-        //     if (time_elapsed >= games[request[1]].max_playtime) {
-        //         end_game(request[1], GAME_TIMEOUT);
-        //     }
         } else if (ret) {
+            time_t now = time(nullptr);
+            int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+            if (time_elapsed >= games[request[1]].max_playtime) {
+                end_game(request[1], GAME_TIMEOUT);
+            } else {
                 return handle_error(ONGOING_GAME);
+            }
         }
         return start_game(request);
     }
@@ -235,7 +234,17 @@ string Server::handle_request(char* requestBuffer) {
     }
 
     else if (!strcmp(command, SHOW_TRIAL_REQUEST)) {
-
+        if (request_size != 2) {
+            return handle_error(INVALID_ST_TAG);
+        }
+        if (ret) {
+            time_t now = time(nullptr);
+            int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+            if (time_elapsed >= games[request[1]].max_playtime) {
+                end_game(request[1], GAME_TIMEOUT);
+            }
+        }
+        return show_trials(request);
     }
 
     else if (!strcmp(command, SCOREBOARD_REQUEST)) {
@@ -521,6 +530,10 @@ string Server::quit_game(vector<string> request) {
 
     string message = "RQT OK " + std::string(1, target[0]) + " " + std::string(1, target[1]) + " " + std::string(1, target[2]) + " " + std::string(1,target[3]) + "\n";
     return message;
+}
+
+string Server::show_trials(vector<string> request) {
+
 }
 
 void Server::end_game(string plid, int status) {

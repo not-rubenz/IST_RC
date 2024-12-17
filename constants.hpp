@@ -44,6 +44,7 @@
 #define INVALID_COLOR 112
 #define INVALID_QUIT_ARG 113
 #define NO_ONGOING_GAME 114
+#define INVALID_ST_TAG 115
 
 
 #define GAME_WIN 200
