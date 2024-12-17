@@ -197,9 +197,9 @@ string Server::handle_request(char* requestBuffer) {
     int request_size = request.size();
     char file_name[20];
 
-    if (request_size <= 2) {
-        return handle_error(INVALID_INPUT);
-    }
+    // if (request_size < 2) {
+    //     return handle_error(INVALID_INPUT);
+    // }
 
     if (!valid_PLID(request[1])) {
         return handle_error(INVALID_PLID);
@@ -248,6 +248,7 @@ string Server::handle_request(char* requestBuffer) {
         } else if (!ret) {
             return handle_error(NO_ONGOING_GAME);
         }
+        return quit_game(request);
     }
 
     else if (!strcmp(command, DEBUG_REQUEST)) {
@@ -519,7 +520,12 @@ string Server::debug_mode(vector<string> request) {
 }
 
 string Server::quit_game(vector<string> request) {
+    string PLID = request[1];
+    string target = games[PLID].colors;
+    end_game(PLID);
 
+    string message = "RQT OK " + std::string(1, target[0]) + " " + std::string(1, target[1]) + " " + std::string(1, target[2]) + " " + std::string(1,target[3]) + "\n";
+    return message;
 }
 
 void Server::end_game(string plid) {
