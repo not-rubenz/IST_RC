@@ -310,6 +310,12 @@ string Server::start_game(vector<string> request) {
     GAME new_game;
     int fd;
 
+    time_t now = time(nullptr);
+    int time_elapsed = (int) difftime(now, games[PLID].start_time);
+    if (time_elapsed >= games[PLID].max_playtime) {
+        end_game(PLID);
+    }
+
     if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
@@ -371,13 +377,14 @@ string Server::try_colors(vector<string> request) {
 
     time_t now = time(nullptr);
     int time_elapsed = (int) difftime(now, current_game.start_time);
-
     if (time_elapsed >= current_game.max_playtime) {
+        end_game(PLID);
         string message = handle_error(OUT_OF_TIME) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
         return message;
     }
 
     if (current_game.n_tries == MAX_TRIALS - 1) {
+        end_game(PLID);
         string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
         return message;
     }
@@ -457,6 +464,12 @@ string Server::debug_mode(vector<string> request) {
     char buffer[128];
     int fd;
 
+    time_t now = time(nullptr);
+    int time_elapsed = (int) difftime(now, games[PLID].start_time);
+    if (time_elapsed >= games[PLID].max_playtime) {
+        end_game(PLID);
+    }
+
     if (!valid_color(request[3]) || !valid_color(request[4])
         || !valid_color(request[5]) || !valid_color(request[6])) {
             return handle_error(INVALID_COLOR);
@@ -514,7 +527,7 @@ void Server::end_game(string plid) {
     time_t now = time(nullptr);
     struct tm *local_time = localtime(&now);
     char date[11], time_str[9];
-    int time_elapsed = (int) difftime(now, games[plid].start_time);
+    int time_elapsed = std::min((int) difftime(now, games[plid].start_time), games[plid].max_playtime);
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time);
     sprintf(buffer, "%s %s %d\n", date, time_str, time_elapsed);
