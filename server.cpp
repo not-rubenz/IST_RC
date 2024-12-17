@@ -332,7 +332,6 @@ string Server::start_game(vector<string> request) {
     }
     code[4] = '\0';
 
-    time_t now = time(nullptr);
     struct tm *local_time = localtime(&now);
     char date[11], time_str[9];
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
@@ -490,7 +489,6 @@ string Server::debug_mode(vector<string> request) {
     code[3] = request[6][0];
     code[4] = '\0';
 
-    time_t now = time(nullptr);
     struct tm *local_time = localtime(&now);
     char date[11], time_str[9];
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
