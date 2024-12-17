@@ -248,7 +248,7 @@ string Server::handle_request(char* requestBuffer) {
     }
 
     else if (!strcmp(command, SCOREBOARD_REQUEST)) {
-
+        return scoreboard(request);
     }
 
     else if (!strcmp(command, QUIT_REQUEST)) {
@@ -370,6 +370,7 @@ string Server::start_game(vector<string> request) {
     new_game.max_playtime = atoi(max_playtime.c_str());
     new_game.start_time = now;
     new_game.n_tries = 0;
+    new_game.score = "000";
     games[PLID] = new_game;
 
     string message = "RSG OK\n";
@@ -523,6 +524,20 @@ string Server::debug_mode(vector<string> request) {
     return message;
 }
 
+
+string Server::show_trials(vector<string> request) {
+
+}
+
+string Server::scoreboard(vector<string> request) {
+    string message;
+    message = string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
+            + string("           SCORE   PLAYER     CODE     NO TRIALS    MODE\n");
+
+    
+}
+
+
 string Server::quit_game(vector<string> request) {
     string PLID = request[1];
     string target = games[PLID].colors;
@@ -532,14 +547,11 @@ string Server::quit_game(vector<string> request) {
     return message;
 }
 
-string Server::show_trials(vector<string> request) {
-
-}
-
 void Server::end_game(string plid, int status) {
     int fd;
     char buffer[32];
     string s_status;
+    string score_file_name;
     string file_name = "GAMES/GAME_" + plid + ".txt";
     if ((fd = open(file_name.c_str(), O_WRONLY | O_APPEND, 0755)) < 0) {
         fprintf(stderr, "Error opening file.\n");
@@ -551,13 +563,29 @@ void Server::end_game(string plid, int status) {
     int time_elapsed = std::min((int) difftime(now, games[plid].start_time), games[plid].max_playtime);
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time);
+
     sprintf(buffer, "%s %s %d\n", date, time_str, time_elapsed);
     sendTCP(fd, buffer, strlen(buffer));
     close(fd);
 
+    char date_aux[9], time_aux[7];
+    strftime(date_aux, sizeof(date_aux), "%Y%m%d", local_time);
+    strftime(time_aux, sizeof(time_aux), "%H%M%S", local_time);
+
     switch(status) {
         case GAME_WIN:
             s_status = "_W";
+            // getScore()
+            score_file_name = "SCORES/" + games[plid].score + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
+            if ((fd = open(score_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+                fprintf(stderr, "Error opening file.\n");
+                exit(EXIT_FAILURE);
+            }
+
+            sprintf(buffer, "%s %s %s %d %c\n", games[plid].score.c_str(), plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode);
+            sendTCP(fd, buffer, strlen(buffer));
+            close(fd);
+
             break;
         case GAME_FAIL:
             s_status = "_F";
@@ -570,10 +598,8 @@ void Server::end_game(string plid, int status) {
             break;
     }
 
-    char date_aux[9], time_aux[7];
-    strftime(date_aux, sizeof(date_aux), "%Y%m%d", local_time);
-    strftime(time_aux, sizeof(time_aux), "%H%M%S", local_time);
     string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + s_status + ".txt";
+
     if (rename(file_name.c_str(), new_file_name.c_str()) < 0) {
         fprintf(stderr, "Error renaming file.\n");
         exit(EXIT_FAILURE);

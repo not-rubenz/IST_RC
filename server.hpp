@@ -36,6 +36,7 @@ typedef struct GAME {
     time_t start_time;
     int n_tries;
     vector<string> tries;
+    string score;
 } GAME;
 
 class Server {
@@ -61,6 +62,7 @@ class Server {
         string debug_mode(vector<string> request);
         string quit_game(vector<string> request);
         string show_trials(vector<string> request);
+        string scoreboard(vector<string> request);
         void end_game(string plid, int status);
         int create_dir(const char* dirname);
         int FindGame(string PLID, const char *fname);
