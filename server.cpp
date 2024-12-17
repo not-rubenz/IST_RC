@@ -214,7 +214,13 @@ string Server::handle_request(char* requestBuffer) {
             return handle_error(INVALID_START_ARG);
         }
         else if (ret) {
-            return handle_error(ONGOING_GAME);
+            time_t now = time(nullptr);
+            int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+            if (time_elapsed >= games[request[1]].max_playtime) {
+                end_game(request[1]);
+            } else {
+                return handle_error(ONGOING_GAME);
+            }
         }
         return start_game(request);
     }
@@ -250,7 +256,13 @@ string Server::handle_request(char* requestBuffer) {
                 return handle_error(INVALID_DEBUG_ARG);
             }
             else if (ret) {
-                return handle_error(ONGOING_GAME);
+                time_t now = time(nullptr);
+                int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+                if (time_elapsed >= games[request[1]].max_playtime) {
+                    end_game(request[1]);
+                } else {
+                    return handle_error(ONGOING_GAME);
+                }
             }
             return debug_mode(request);
         }
@@ -311,10 +323,6 @@ string Server::start_game(vector<string> request) {
     int fd;
 
     time_t now = time(nullptr);
-    int time_elapsed = (int) difftime(now, games[PLID].start_time);
-    if (time_elapsed >= games[PLID].max_playtime) {
-        end_game(PLID);
-    }
 
     if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
         fprintf(stderr, "Error opening file.\n");
