@@ -45,6 +45,11 @@
 #define INVALID_QUIT_ARG 113
 #define NO_ONGOING_GAME 114
 
+
+#define GAME_WIN 200
+#define GAME_FAIL 201
+#define GAME_QUIT 202
+#define GAME_TIMEOUT 203
 #define MAX_TRIALS 8
 
 

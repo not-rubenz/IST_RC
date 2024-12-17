@@ -212,15 +212,15 @@ string Server::handle_request(char* requestBuffer) {
     if (!strcmp(command, START_REQUEST)) {
         if (request_size != 3 || !valid_time(request[2])) {
             return handle_error(INVALID_START_ARG);
-        }
-        else if (ret) {
-            time_t now = time(nullptr);
-            int time_elapsed = (int) difftime(now, games[request[1]].start_time);
-            if (time_elapsed >= games[request[1]].max_playtime) {
-                end_game(request[1]);
-            } else {
+        // }
+        // else if (!ret) {
+        //     time_t now = time(nullptr);
+        //     int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+        //     if (time_elapsed >= games[request[1]].max_playtime) {
+        //         end_game(request[1], GAME_TIMEOUT);
+        //     }
+        } else if (ret) {
                 return handle_error(ONGOING_GAME);
-            }
         }
         return start_game(request);
     }
@@ -252,21 +252,19 @@ string Server::handle_request(char* requestBuffer) {
     }
 
     else if (!strcmp(command, DEBUG_REQUEST)) {
-        if (!strcmp(command, DEBUG_REQUEST)) {
-            if (request_size != 7 || !valid_time(request[2])) {
-                return handle_error(INVALID_DEBUG_ARG);
-            }
-            else if (ret) {
-                time_t now = time(nullptr);
-                int time_elapsed = (int) difftime(now, games[request[1]].start_time);
-                if (time_elapsed >= games[request[1]].max_playtime) {
-                    end_game(request[1]);
-                } else {
-                    return handle_error(ONGOING_GAME);
-                }
-            }
-            return debug_mode(request);
+        if (request_size != 7 || !valid_time(request[2])) {
+            return handle_error(INVALID_DEBUG_ARG);
         }
+        else if (ret) {
+            time_t now = time(nullptr);
+            int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+            if (time_elapsed >= games[request[1]].max_playtime) {
+                end_game(request[1], GAME_TIMEOUT);
+            } else {
+                return handle_error(ONGOING_GAME);
+            }
+        }
+        return debug_mode(request);
     }
     else {
         return handle_error(INVALID_CMD_SYNTAX);
@@ -386,13 +384,13 @@ string Server::try_colors(vector<string> request) {
     time_t now = time(nullptr);
     int time_elapsed = (int) difftime(now, current_game.start_time);
     if (time_elapsed >= current_game.max_playtime) {
-        end_game(PLID);
+        end_game(PLID, GAME_TIMEOUT);
         string message = handle_error(OUT_OF_TIME) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
         return message;
     }
 
     if (current_game.n_tries == MAX_TRIALS - 1) {
-        end_game(PLID);
+        end_game(PLID, GAME_FAIL);
         string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
         return message;
     }
@@ -454,7 +452,7 @@ string Server::try_colors(vector<string> request) {
     close(fd);
 
     if (nB == 4) {
-        end_game(PLID);
+        end_game(PLID, GAME_WIN);
     }
 
     games[PLID].n_tries++;
@@ -474,9 +472,6 @@ string Server::debug_mode(vector<string> request) {
 
     time_t now = time(nullptr);
     int time_elapsed = (int) difftime(now, games[PLID].start_time);
-    if (time_elapsed >= games[PLID].max_playtime) {
-        end_game(PLID);
-    }
 
     if (!valid_color(request[3]) || !valid_color(request[4])
         || !valid_color(request[5]) || !valid_color(request[6])) {
@@ -522,15 +517,16 @@ string Server::debug_mode(vector<string> request) {
 string Server::quit_game(vector<string> request) {
     string PLID = request[1];
     string target = games[PLID].colors;
-    end_game(PLID);
+    end_game(PLID, GAME_QUIT);
 
     string message = "RQT OK " + std::string(1, target[0]) + " " + std::string(1, target[1]) + " " + std::string(1, target[2]) + " " + std::string(1,target[3]) + "\n";
     return message;
 }
 
-void Server::end_game(string plid) {
+void Server::end_game(string plid, int status) {
     int fd;
     char buffer[32];
+    string s_status;
     string file_name = "GAMES/GAME_" + plid + ".txt";
     if ((fd = open(file_name.c_str(), O_WRONLY | O_APPEND, 0755)) < 0) {
         fprintf(stderr, "Error opening file.\n");
@@ -546,10 +542,25 @@ void Server::end_game(string plid) {
     sendTCP(fd, buffer, strlen(buffer));
     close(fd);
 
+    switch(status) {
+        case GAME_WIN:
+            s_status = "_W";
+            break;
+        case GAME_FAIL:
+            s_status = "_F";
+            break;
+        case GAME_QUIT:
+            s_status = "_Q";
+            break;
+        case GAME_TIMEOUT:
+            s_status = "_T";
+            break;
+    }
+
     char date_aux[9], time_aux[7];
     strftime(date_aux, sizeof(date_aux), "%Y%m%d", local_time);
     strftime(time_aux, sizeof(time_aux), "%H%M%S", local_time);
-    string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + "_W.txt";
+    string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + s_status + ".txt";
     if (rename(file_name.c_str(), new_file_name.c_str()) < 0) {
         fprintf(stderr, "Error renaming file.\n");
         exit(EXIT_FAILURE);
@@ -557,50 +568,47 @@ void Server::end_game(string plid) {
 }
 
 // Find GAME_(PLID).txt
-int Server::FindGame(string PLID, const char *fname) {
-    struct dirent ** filelist;
-    int n_entries, found;
-    char dirname [20];
-    string file_name = "GAME_" + PLID + ".txt";
+int Server::FindGame(std::string PLID, const char *fname) {
+    DIR *dir;
+    struct dirent *entry;
+    char dirname[] = "GAMES/";
+    std::string file_name = "GAME_" + PLID + ".txt";
+    int found = 0;
 
-    sprintf(dirname, "GAMES/");
-    n_entries = scandir (dirname, &filelist, 0, alphasort);
-    found = 0;  
-
-    if (n_entries <= 0) {
+    dir = opendir(dirname);
+    if (dir == NULL) {
         return 0;
     }
-    else {
-        while (n_entries--) {
-            if (!strcmp(filelist[n_entries]->d_name, file_name.c_str()) && !found) {
-                fname = file_name.c_str();
-                found = 1;
-            }
-            free(filelist [n_entries]);
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (!strcmp(entry->d_name, file_name.c_str())) {
+            fname = file_name.c_str(); // Update fname if file is found
+            found = 1;
+            break;
         }
-        free(filelist);
     }
-    return (found);
+    closedir(dir);
+    return found;
 }
 
 
 int Server::FindLastGame(char* PLID, char *fname) {
     struct dirent ** filelist;
     int n_entries, found;
-    char dirname [20];
+    char dirname[20];
 
     sprintf(dirname, "GAMES/%s/",PLID);
-    n_entries = scandir (dirname, &filelist, 0, alphasort);
+    n_entries = scandir(dirname, &filelist, 0, alphasort);
     found = 0;
     if (n_entries <= 0)
         return (0);
     else {
         while (n_entries --) {
-            if(filelist [n_entries]->d_name [0]!= '.' && !found) {
-                sprintf(fname, "GAMES/%s/%s",PLID, filelist [n_entries]->d_name); 
+            if(filelist[n_entries]->d_name [0]!= '.' && !found) {
+                sprintf(fname, "GAMES/%s/%s",PLID, filelist[n_entries]->d_name); 
                 found = 1;
             }
-            free(filelist [n_entries]);
+            free(filelist[n_entries]);
         }
         free(filelist);
     }
