@@ -148,7 +148,6 @@ void Server::receive_request(){
             }
 
             n = receiveWordTCP(new_fd, bufferTCP, 4);
-            // write(1, bufferTCP, n);
             string message = handle_request_tcp(new_fd, bufferTCP);
             sendTCP(new_fd, message, message.size());
             close(new_fd);
@@ -362,7 +361,7 @@ string Server::start_game(vector<string> request) {
     create_dir(player_dir.c_str());
 
     const char valid_colors[] = {'R', 'G', 'B', 'Y', 'O', 'P'};
-    const char mode = 'P';
+    string mode = "PLAY";
     char code[5];
     srand(time(nullptr));
     for (int i = 0; i < 4; ++i) {
@@ -377,7 +376,7 @@ string Server::start_game(vector<string> request) {
 
     dprintf(fd, "%s %c %s %s %s %s %ld\n",
             PLID.c_str(),     
-            mode,             
+            mode[0],             
             code,             
             max_playtime.c_str(), 
             date,           
@@ -517,7 +516,7 @@ string Server::debug_mode(vector<string> request) {
 
     create_dir(player_dir.c_str());
 
-    const char mode = 'D';
+    string mode = "DEBUG";
     char code[5];
     code[0] = request[3][0];
     code[1] = request[4][0];
@@ -532,7 +531,7 @@ string Server::debug_mode(vector<string> request) {
 
     dprintf(fd, "%s %c %s %s %s %s %ld\n",
             PLID.c_str(),     
-            mode,             
+            mode[0],             
             code,             
             max_playtime.c_str(), 
             date,           
@@ -552,7 +551,7 @@ string Server::show_trials(string plid) {
     string Fdata;
     string trials = "";
     FILE *file;
-    char file_name[24], buffer[128], guess[4], Fdata_aux[128], date[11], time_str[9];;
+    char file_name[24], buffer[128], guess[4], Fdata_aux[128], date[11], time_str[9];
     int max_playtime, nB, nW, time_elapsed, n_trials, time_left;
     time_t start_time;
     n_trials = 0;
@@ -562,7 +561,7 @@ string Server::show_trials(string plid) {
             fprintf(stderr, "Error opening file.\n");
             exit(EXIT_FAILURE);
         }
-        message = "RST ACT STATE_" + plid + ".txt";
+        message = "RST ACT STATE_" + plid + ".txt ";
         fgets(buffer, 128, file);
         sscanf(buffer, "%*s %*s %*s %d %s %s %ld\n", &max_playtime, date, time_str, &start_time);
         while (fgets(buffer, 128, file)) {
@@ -571,22 +570,30 @@ string Server::show_trials(string plid) {
                 sprintf(Fdata_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
                 trials += string(Fdata_aux);
                 n_trials++;
-                // write(1, Fdata_aux, strlen(Fdata_aux));
             }
         }
-        Fdata = "Active game found for player " + plid + "\n";
+        Fdata = "     Active game found for player " + plid + "\n";
 
         time_t now = time(nullptr);
         int time_elapsed = (int) difftime(now, start_time);
         time_left = max_playtime - time_elapsed;
-        sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n     Game started - %d transactions found\n\n", 
-                date, time_str, max_playtime, n_trials);
+        if (n_trials == 0) {
+            sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n     Game started - no transactions found\n", 
+                    date, time_str, max_playtime);
+            Fdata += string(Fdata_aux) +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
+        } else {
+            write(1, time_str, strlen(time_str));
+            sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n     --- Transactions found: %d ---\n\n", 
+                    date, time_str, max_playtime, n_trials);
+            Fdata += string(Fdata_aux) + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
+        }
         
-        Fdata += string(Fdata_aux) + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
-        write(1, Fdata.c_str(), strlen(Fdata.c_str()));
+        message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
+        write(1, message.c_str(), strlen(message.c_str()));
+        return message;
 
     } else if (FindLastGame((char *) plid.c_str(), file_name)) {
-
+        
     } else {
         return handle_error(NO_GAMES);
     }
@@ -638,10 +645,6 @@ void Server::end_game(string plid, int status) {
     sendTCP(fd, buffer, strlen(buffer));
     close(fd);
 
-    char date_aux[9], time_aux[7];
-    strftime(date_aux, sizeof(date_aux), "%Y%m%d", local_time);
-    strftime(time_aux, sizeof(time_aux), "%H%M%S", local_time);
-
     switch(status) {
         case GAME_WIN:
             s_status = "_W";
@@ -649,29 +652,31 @@ void Server::end_game(string plid, int status) {
             break;
         case GAME_FAIL:
             s_status = "_F";
-            games[plid].score = 0;
             break;
         case GAME_QUIT:
             s_status = "_Q";
-            games[plid].score = 0;
             break;
         case GAME_TIMEOUT:
             s_status = "_T";
-            games[plid].score = 0;
             break;
     }
 
-    char score_aux[4];
-    sprintf(score_aux, "%03d", games[plid].score);
-    score_file_name = "SCORES/" + string(score_aux) + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
-    if ((fd = open(score_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
-        fprintf(stderr, "Error opening file.\n");
-        exit(EXIT_FAILURE);
-    }
+    char date_aux[9], time_aux[7];
+    strftime(date_aux, sizeof(date_aux), "%Y%m%d", local_time);
+    strftime(time_aux, sizeof(time_aux), "%H%M%S", local_time);
 
-    sprintf(buffer, "%03d %s %s %d %c\n", games[plid].score, plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode);
-    sendTCP(fd, buffer, strlen(buffer));
-    close(fd);
+    if (status == GAME_WIN) {
+        char score_aux[4];
+        sprintf(score_aux, "%03d", games[plid].score);
+        score_file_name = "SCORES/" + string(score_aux) + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
+        if ((fd = open(score_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+            fprintf(stderr, "Error opening file.\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(buffer, "%03d %s %s %d %s\n", games[plid].score, plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode.c_str());
+        sendTCP(fd, buffer, strlen(buffer));
+        close(fd);
+    }
 
     string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + s_status + ".txt";
 

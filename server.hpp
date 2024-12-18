@@ -31,7 +31,7 @@ typedef struct SOCKET {
 
 typedef struct GAME {
     string plid;
-    char mode;
+    string mode;
     string colors;
     int max_playtime;
     time_t start_time;
