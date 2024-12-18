@@ -293,9 +293,14 @@ void Player::debug_cmd(string line) {
     if (ret == -1) exit(-1);
 
     write(1, buffer, ret);
-    if (strcmp(buffer, "ERR\n")) {
+    char cmd[4], status[4];
+    sscanf(buffer, "%s %s", cmd, status);
+    if (!strcmp(cmd, "RDB") && !strcmp(status, "OK")) {
         plid = input[0];
         max_playtime = input[1];
+        n_tries = 1;
+        string message = "New game started (max " + max_playtime + " sec)\n";
+        write(1, message.c_str(), strlen(message.c_str()));
     }
 }
 

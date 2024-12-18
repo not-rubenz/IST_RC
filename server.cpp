@@ -420,12 +420,6 @@ string Server::try_colors(vector<string> request) {
         return message;
     }
 
-    if (current_game.n_tries == MAX_TRIALS - 1) {
-        end_game(PLID, GAME_FAIL);
-        string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
-        return message;
-    }
-
     if (!valid_color(request[2]) || !valid_color(request[3])
         || !valid_color(request[4]) || !valid_color(request[5])) {
             return handle_error(INVALID_COLOR);
@@ -489,6 +483,14 @@ string Server::try_colors(vector<string> request) {
         end_game(PLID, GAME_WIN);
     }
 
+    if (current_game.n_tries == MAX_TRIALS - 1) {
+        if (nB != 4) {
+            end_game(PLID, GAME_FAIL);
+        }
+        string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
+        return message;
+    }
+
     string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
     return message;
 }
@@ -499,6 +501,7 @@ string Server::debug_mode(vector<string> request) {
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     char buffer[128];
+    GAME new_game;
     int fd;
 
     time_t now = time(nullptr);
@@ -540,8 +543,15 @@ string Server::debug_mode(vector<string> request) {
 
     close(fd);
 
-    string message = "RDB OK\n";
+    new_game.mode = mode;
+    new_game.colors = string(code);
+    new_game.max_playtime = atoi(max_playtime.c_str());
+    new_game.start_time = now;
+    new_game.n_tries = 0;
+    new_game.score = 0;
+    games[PLID] = new_game;
 
+    string message = "RDB OK\n";
     return message;
 }
 
@@ -551,7 +561,7 @@ string Server::show_trials(string plid) {
     string Fdata;
     string trials = "";
     FILE *file;
-    char file_name[24], buffer[128], guess[4], Fdata_aux[128], date[11], time_str[9];
+    char file_name[64], buffer[128], guess[5], Fdata_aux[128], date[11], time_str[9];
     int max_playtime, nB, nW, time_elapsed, n_trials, time_left;
     time_t start_time;
     n_trials = 0;
@@ -562,8 +572,14 @@ string Server::show_trials(string plid) {
             exit(EXIT_FAILURE);
         }
         message = "RST ACT STATE_" + plid + ".txt ";
+        Fdata = "     Active game found for player " + plid + "\n";
+
         fgets(buffer, 128, file);
         sscanf(buffer, "%*s %*s %*s %d %s %s %ld\n", &max_playtime, date, time_str, &start_time);
+        sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n", 
+                    date, time_str, max_playtime);
+        Fdata += string(Fdata_aux);
+
         while (fgets(buffer, 128, file)) {
             if (buffer[0] == 'T') {
                 sscanf(buffer, "T: %s %d %d %d\n", guess, &nB, &nW, &time_elapsed);
@@ -572,31 +588,84 @@ string Server::show_trials(string plid) {
                 n_trials++;
             }
         }
-        Fdata = "     Active game found for player " + plid + "\n";
 
         time_t now = time(nullptr);
         int time_elapsed = (int) difftime(now, start_time);
         time_left = max_playtime - time_elapsed;
         if (n_trials == 0) {
-            sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n     Game started - no transactions found\n", 
-                    date, time_str, max_playtime);
-            Fdata += string(Fdata_aux) +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
+            Fdata += "     Game started - no transactions found\n\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
         } else {
-            write(1, time_str, strlen(time_str));
-            sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n     --- Transactions found: %d ---\n\n", 
-                    date, time_str, max_playtime, n_trials);
-            Fdata += string(Fdata_aux) + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
+            Fdata += "     --- Transactions found: " + std::to_string(n_trials) + " ---\n\n" + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
         }
-        
-        message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
-        write(1, message.c_str(), strlen(message.c_str()));
-        return message;
 
     } else if (FindLastGame((char *) plid.c_str(), file_name)) {
+
+        char termination, mode;
+        char target[5], end_date[11], end_time[9];
+        string termination_str;
+        int duration;
         
+        if ((file = fopen(file_name, "r")) == NULL) {
+            fprintf(stderr, "Error opening file.\n");
+            exit(EXIT_FAILURE);
+        }
+        message = "RST FIN STATE_" + plid + ".txt ";
+        Fdata = "     Last finalized game for player " + plid + "\n";
+        fgets(buffer, 128, file);
+        sscanf(buffer, "%*s %c %s %d %s %s %ld\n", &mode, target, &max_playtime, date, time_str, &start_time);
+        sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n", 
+                    date, time_str, max_playtime);
+        if (mode == 'P') {
+            Fdata += string(Fdata_aux) + "Mode: PLAY  Secret code: " + string(target) + "\n\n";
+        } else {
+            Fdata += string(Fdata_aux) + "Mode: DEBUG Secret code: " + string(target) + "\n\n";
+        }
+
+        while (fgets(buffer, 128, file)) {
+            if (buffer[0] == 'T') {
+                sscanf(buffer, "T: %s %d %d %d\n", guess, &nB, &nW, &time_elapsed);
+                sprintf(Fdata_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
+                trials += string(Fdata_aux);
+                n_trials++;
+            } else {
+                sscanf(buffer, "%s %s %d\n", end_date, end_time, &duration);
+            }
+        }
+        termination = file_name[29];
+        switch(termination) {
+            case 'W':
+                termination_str = "WIN";
+                break;
+            case 'F':
+                termination_str = "FAIL";
+                break;
+            case 'Q':
+                termination_str = "QUIT";
+                break;
+            case 'T':
+                termination_str = "TIMEOUT";
+                break;
+        }
+
+        time_t now = time(nullptr);
+        int time_elapsed = (int) difftime(now, start_time);
+        time_left = max_playtime - time_elapsed;
+        if (n_trials == 0) {
+            Fdata += "     Game started - no transactions found\n";
+        } else {
+            Fdata += "     --- Transactions found: " + std::to_string(n_trials) + " ---\n" + trials;
+        }
+        Fdata += "     Termination: " + termination_str + " at " + string(end_date) + " " + string(end_time) +
+                 ", Duration: " + std::to_string(duration) + "s\n\n";
+
     } else {
         return handle_error(NO_GAMES);
     }
+    
+    message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
+    write(1, message.c_str(), strlen(message.c_str()));
+    fclose(file);
+    return message;
 
 }
 
@@ -610,7 +679,7 @@ string Server::scoreboard() {
     }
     message = string("RSS OK ") + fname + std::to_string(top_score.size() + 141) + "\n";
     message += string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
-            + string("           SCORE   PLAYER     CODE     NO TRIALS    MODE\n\n");
+            + string("                 SCORE PLAYER     CODE    NO TRIALS   MODE\n\n");
     message += top_score;
     return message;
 }
@@ -691,7 +760,7 @@ void Server::end_game(string plid, int status) {
 
 void Server::getScore(string plid) {
 
-    games[plid].score = ((MAX_TRIALS - 1) - (games[plid].n_tries - 1)) * 100 / (MAX_TRIALS - 1);
+    games[plid].score = (MAX_TRIALS - (games[plid].n_tries - 1)) * 100 / MAX_TRIALS;
 
 }
 
@@ -776,7 +845,7 @@ int Server::FindTopScores(string& message) {
                     file_content[4] = string("DEBUG");
                 }
 
-                sprintf(buffer, "%13d - %5s %8s %8s %8s %s\n",
+                sprintf(buffer, "%14d - %4s  %s     %s        %s       %s\n",
                     n_game,
                     file_content[0].c_str(),
                     file_content[1].c_str(),
