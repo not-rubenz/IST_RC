@@ -148,7 +148,7 @@ void Server::receive_request(){
             }
 
             n = receiveWordTCP(new_fd, bufferTCP, 4);
-            write(1, bufferTCP, n);
+            // write(1, bufferTCP, n);
             string message = handle_request_tcp(new_fd, bufferTCP);
             close(new_fd);
         }
@@ -550,8 +550,10 @@ string Server::show_trials(string plid) {
     string Fdata;
     string trials = "";
     FILE *file;
-    char file_name[24], buffer[128], guess[4], trial_aux[40];
-    int nB, nW, time_elapsed;
+    char file_name[24], buffer[128], guess[4], Fdata_aux[128], date[11], time_str[9];;
+    int max_playtime, nB, nW, time_elapsed, n_trials, time_left;
+    time_t start_time;
+    n_trials = 0;
     if (FindGame(plid, NULL)) {
         string file_n = "GAMES/GAME_" + plid + ".txt";
         if ((file = fopen(file_n.c_str(), "r")) == NULL) {
@@ -559,13 +561,28 @@ string Server::show_trials(string plid) {
             exit(EXIT_FAILURE);
         }
         message = "RST ACT STATE_" + plid + ".txt";
+        fgets(buffer, 128, file);
+        sscanf(buffer, "%*s %*s %*s %d %s %s %ld\n", &max_playtime, date, time_str, &start_time);
         while (fgets(buffer, 128, file)) {
             if (buffer[0] == 'T') {
                 sscanf(buffer, "T: %s %d %d %d\n", guess, &nB, &nW, &time_elapsed);
-                sprintf(trial_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
-                write(1, trial_aux, strlen(trial_aux));
+                sprintf(Fdata_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
+                trials += string(Fdata_aux);
+                n_trials++;
+                // write(1, Fdata_aux, strlen(Fdata_aux));
             }
         }
+        Fdata = "Active game found for player " + plid + "\n";
+
+        time_t now = time(nullptr);
+        int time_elapsed = (int) difftime(now, start_time);
+        time_left = max_playtime - time_elapsed;
+        sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n     Game started - %d transactions found\n\n", 
+                date, time_str, max_playtime, n_trials);
+        
+        Fdata += string(Fdata_aux) + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
+        write(1, Fdata.c_str(), strlen(Fdata.c_str()));
+
     } else if (FindLastGame((char *) plid.c_str(), file_name)) {
 
     } else {
