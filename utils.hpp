@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <algorithm>
 #include <cctype>
+#include <dirent.h>
 #include "constants.hpp"
 
 using std::string;
@@ -30,5 +31,6 @@ int FindIndex(const char array[], char value, int size);
 int valid_PLID(string PLID);
 int valid_time(string time);
 int valid_color(string color);
+int reverse_alphasort(const struct dirent** a, const struct dirent** b);
 
 #endif

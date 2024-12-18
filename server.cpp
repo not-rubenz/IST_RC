@@ -677,7 +677,7 @@ string Server::scoreboard() {
         message = "RSS EMPTY";
         return message;
     }
-    message = string("RSS OK ") + fname + std::to_string(top_score.size() + 141) + "\n";
+    message = string("RSS OK ") + fname + std::to_string(top_score.size() + 143) + "\n";
     message += string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
             + string("                 SCORE PLAYER     CODE    NO TRIALS   MODE\n\n");
     message += top_score;
@@ -821,7 +821,7 @@ int Server::FindTopScores(string& message) {
     FILE* fptr;
     vector<string> file_content;
 
-    n_entries = scandir("SCORES/", &filelist, NULL, alphasort);
+    n_entries = scandir("SCORES/", &filelist, NULL, reverse_alphasort);
     if (n_entries <= 0) {
         fprintf(stderr, "scandir error\n");
         return 0;
@@ -845,7 +845,7 @@ int Server::FindTopScores(string& message) {
                     file_content[4] = string("DEBUG");
                 }
 
-                sprintf(buffer, "%14d - %4s  %s     %s        %s       %s\n",
+                sprintf(buffer, "%14d - %4s %7s %8s %8s %10s\n",
                     n_game,
                     file_content[0].c_str(),
                     file_content[1].c_str(),
