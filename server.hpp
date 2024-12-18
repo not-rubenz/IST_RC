@@ -55,13 +55,14 @@ class Server {
         void setup_TCP(string port);
         void setup_server(string port);
         void receive_request();
-        string handle_request(char* requestBuffer);
+        string handle_request_udp(char* requestBuffer);
+        string handle_request_tcp(int fd, char* requestBuffer);
         string handle_error(int errcode);
         string start_game(vector<string> request);
         string try_colors(vector<string> request);
         string debug_mode(vector<string> request);
         string quit_game(vector<string> request);
-        string show_trials(vector<string> request);
+        string show_trials(string plid);
         string scoreboard(vector<string> request);
         void getScore(string plid);
         void end_game(string plid, int status);

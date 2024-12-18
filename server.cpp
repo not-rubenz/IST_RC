@@ -147,9 +147,9 @@ void Server::receive_request(){
                 exit(EXIT_FAILURE);
             }
 
-            n = receiveTCP(new_fd, bufferTCP, 4);
+            n = receiveWordTCP(new_fd, bufferTCP, 4);
             write(1, bufferTCP, n);
-            string message = handle_request(bufferTCP);
+            string message = handle_request_tcp(new_fd, bufferTCP);
             close(new_fd);
         }
 
@@ -163,7 +163,7 @@ void Server::receive_request(){
             }
             write(1, bufferUDP, n);
 
-            string message = handle_request(bufferUDP);
+            string message = handle_request_udp(bufferUDP);
 
             if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
                 fprintf(stderr, "Unable to send message through UDP.\n");
@@ -184,7 +184,7 @@ int Server::create_dir(const char* dirname) {
     return 1;
 }
 
-string Server::handle_request(char* requestBuffer) {
+string Server::handle_request_udp(char* requestBuffer) {
     string args;
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
@@ -226,23 +226,23 @@ string Server::handle_request(char* requestBuffer) {
         return try_colors(request);
     }
 
-    else if (!strcmp(command, SHOW_TRIAL_REQUEST)) {
-        if (request_size != 2) {
-            return handle_error(INVALID_ST_TAG);
-        }
-        if (ret) {
-            time_t now = time(nullptr);
-            int time_elapsed = (int) difftime(now, games[request[1]].start_time);
-            if (time_elapsed >= games[request[1]].max_playtime) {
-                end_game(request[1], GAME_TIMEOUT);
-            }
-        }
-        return show_trials(request);
-    }
+    // else if (!strcmp(command, SHOW_TRIAL_REQUEST)) {
+    //     if (request_size != 2) {
+    //         return handle_error(INVALID_ST_TAG);
+    //     }
+    //     if (ret) {
+    //         time_t now = time(nullptr);
+    //         int time_elapsed = (int) difftime(now, games[request[1]].start_time);
+    //         if (time_elapsed >= games[request[1]].max_playtime) {
+    //             end_game(request[1], GAME_TIMEOUT);
+    //         }
+    //     }
+    //     return show_trials(request);
+    // }
 
-    else if (!strcmp(command, SCOREBOARD_REQUEST)) {
-        return scoreboard(request);
-    }
+    // else if (!strcmp(command, SCOREBOARD_REQUEST)) {
+    //     return scoreboard(request);
+    // }
 
     else if (!strcmp(command, QUIT_REQUEST)) {
         if (request_size != 2) {
@@ -272,6 +272,30 @@ string Server::handle_request(char* requestBuffer) {
         return handle_error(INVALID_CMD_SYNTAX);
     }
 
+}
+
+string Server::handle_request_tcp(int fd, char* requestBuffer) {
+    char plid[7];
+
+    if (!strcmp(requestBuffer, SHOW_TRIAL_REQUEST)) {
+        int n = receiveWordTCP(fd, plid, 7);
+        if (!valid_PLID(string(plid))) {
+            return handle_error(INVALID_PLID);
+        }
+
+        if (FindGame(plid, NULL)) {
+            time_t now = time(nullptr);
+            int time_elapsed = (int) difftime(now, games[plid].start_time);
+            if (time_elapsed >= games[plid].max_playtime) {
+                end_game(plid, GAME_TIMEOUT);
+            }
+        }
+        return show_trials(plid);
+    }
+
+    else if (!strcmp(requestBuffer, SCOREBOARD)) {
+
+    }
 }
 
 string Server::handle_error(int errcode) {
@@ -521,23 +545,22 @@ string Server::debug_mode(vector<string> request) {
 }
 
 
-string Server::show_trials(vector<string> request) {
-    string PLID = request[1];
+string Server::show_trials(string plid) {
     string message;
     FILE *file;
     char file_name[24];
     char buffer[128];
-    if (FindGame(PLID, file_name)) {
-        message = "RST ACT STATE_" + PLID + ".txt";
-        if ((file = fopen(file_name, "r")) == NULL) {
+    if (FindGame(plid, NULL)) {
+        string file_n = "GAMES/GAME_" + plid + ".txt";
+        if ((file = fopen(file_n.c_str(), "r")) == NULL) {
             fprintf(stderr, "Error opening file.\n");
             exit(EXIT_FAILURE);
         }
-        fgets(buffer, 128, file);
+        message = "RST ACT STATE_" + plid + ".txt";
         while (fgets(buffer, 128, file)) {
-            printf(buffer);
+            write(1, buffer, strlen(buffer));
         }
-    } else if (FindLastGame((char *) PLID.c_str(), file_name)) {
+    } else if (FindLastGame((char *) plid.c_str(), file_name)) {
 
     } else {
         return handle_error(NO_GAMES);
