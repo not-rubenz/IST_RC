@@ -249,7 +249,7 @@ void Player::score_board_cmd() {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            sendTCP(fd, buffer_string.c_str(), atoi(Fsize));
+            sendTCP(fd, buffer_string.c_str(), buffer_string.size());
             close(fd);
         }
     }

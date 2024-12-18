@@ -70,7 +70,7 @@ class Server {
         int create_dir(const char* dirname);
         int FindGame(string PLID, const char *fname);
         int FindLastGame(char *PLID, char *fname);
-        int FindTopScores(char* message);
+        int FindTopScores(string& message);
 };
 
 #endif

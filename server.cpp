@@ -602,12 +602,13 @@ string Server::show_trials(string plid) {
 
 string Server::scoreboard() {
     string message;
-    char* top_score;
+    string top_score = "";
+    char fname[24] = "TOPSCORES_XXX.txt ";
     if (!FindTopScores(top_score)) {
         message = "RSS EMPTY";
         return message;
     }
-
+    message = string("RSS OK ") + fname + std::to_string(top_score.size() + 141) + "\n";
     message += string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
             + string("           SCORE   PLAYER     CODE     NO TRIALS    MODE\n\n");
     message += top_score;
@@ -741,7 +742,7 @@ int Server::FindLastGame(char* PLID, char *fname) {
     return (found);
 }
 
-int Server::FindTopScores(char* message) {
+int Server::FindTopScores(string& message) {
     struct dirent** filelist;
     int n_entries;
     char dirname[20];
@@ -775,13 +776,15 @@ int Server::FindTopScores(char* message) {
                     file_content[4] = string("DEBUG");
                 }
 
-                sprintf(message, "%13d - %5s %8s %8s %8s %s\n",
+                sprintf(buffer, "%13d - %5s %8s %8s %8s %s\n",
                     n_game,
                     file_content[0].c_str(),
                     file_content[1].c_str(),
                     file_content[2].c_str(),
                     file_content[3].c_str(),
                     file_content[4].c_str());
+
+                message += string(buffer);
 
                 free(filelist[n_file]);
                 n_file++;
@@ -793,7 +796,7 @@ int Server::FindTopScores(char* message) {
         }
     }
     free(filelist);
-
+    message += "\0";
     return n_game;
 }
 
