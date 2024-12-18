@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <map>
+#include <iomanip>
 
 using std::string;
 using std::vector;
@@ -63,12 +64,13 @@ class Server {
         string debug_mode(vector<string> request);
         string quit_game(vector<string> request);
         string show_trials(string plid);
-        string scoreboard(vector<string> request);
+        string scoreboard();
         void getScore(string plid);
         void end_game(string plid, int status);
         int create_dir(const char* dirname);
         int FindGame(string PLID, const char *fname);
         int FindLastGame(char *PLID, char *fname);
+        string FindTopScores();
 };
 
 #endif

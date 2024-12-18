@@ -150,6 +150,7 @@ void Server::receive_request(){
             n = receiveWordTCP(new_fd, bufferTCP, 4);
             // write(1, bufferTCP, n);
             string message = handle_request_tcp(new_fd, bufferTCP);
+            sendTCP(new_fd, message, message.size());
             close(new_fd);
         }
 
@@ -293,9 +294,10 @@ string Server::handle_request_tcp(int fd, char* requestBuffer) {
         return show_trials(plid);
     }
 
-    else if (!strcmp(requestBuffer, SCOREBOARD)) {
-
+    else if (!strcmp(requestBuffer, SCOREBOARD_REQUEST)) {
+        return scoreboard();
     }
+
 }
 
 string Server::handle_error(int errcode) {
@@ -591,12 +593,12 @@ string Server::show_trials(string plid) {
 
 }
 
-string Server::scoreboard(vector<string> request) {
+string Server::scoreboard() {
     string message;
     message = string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
-            + string("           SCORE   PLAYER     CODE     NO TRIALS    MODE\n");
-
-    
+            + string("           SCORE   PLAYER     CODE     NO TRIALS    MODE\n\n");
+    message += FindTopScores();
+    return message;
 }
 
 
@@ -682,7 +684,7 @@ void Server::getScore(string plid) {
 }
 
 // Find GAME_(PLID).txt
-int Server::FindGame(std::string PLID, const char *fname) {
+int Server::FindGame(string PLID, const char *fname) {
     DIR *dir;
     struct dirent *entry;
     char dirname[] = "GAMES/";
@@ -716,7 +718,7 @@ int Server::FindLastGame(char* PLID, char *fname) {
     if (n_entries <= 0)
         return (0);
     else {
-        while (n_entries --) {
+        while (n_entries--) {
             if(filelist[n_entries]->d_name [0]!= '.' && !found) {
                 sprintf(fname, "GAMES/%s/%s",PLID, filelist[n_entries]->d_name); 
                 found = 1;
@@ -728,6 +730,61 @@ int Server::FindLastGame(char* PLID, char *fname) {
     return (found);
 }
 
+string Server::FindTopScores() {
+    struct dirent** filelist;
+    int n_entries;
+    char dirname[20];
+    int n_game = 1;
+    int n_file = 0;
+    char buffer[128];
+    FILE* fptr;
+    vector<string> file_content;
+    char message[512];
+
+    n_entries = scandir("SCORES/", &filelist, NULL, alphasort);
+    if (n_entries <= 0) {
+        fprintf(stderr, "sandir error\n");
+        exit(EXIT_FAILURE);
+    }
+    else {
+        while (n_file < 10 && n_file < n_entries) {
+            if (filelist[n_file]->d_name[0] != '.') {
+                string file_name = "SCORES/" + string(filelist[n_file]->d_name);
+                if ((fptr = fopen(file_name.c_str(), "r")) == NULL) {
+                        fprintf(stderr, "Error opening file.\n");
+                        exit(EXIT_FAILURE);
+                }
+                fgets(buffer, 128, fptr);
+                file_content = split_line(buffer);
+
+                if (!strcmp(file_content[4].c_str(), "P")) {
+                    file_content[4] = string("PLAY");
+                }
+                else if (!strcmp(file_content[4].c_str(), "D")) {
+                    file_content[4] = string("DEBUG");
+                }
+
+                sprintf(message, "%13d - %5s %8s %8s %8s %s\n",
+                    n_game,
+                    file_content[0].c_str(),
+                    file_content[1].c_str(),
+                    file_content[2].c_str(),
+                    file_content[3].c_str(),
+                    file_content[4].c_str());
+
+                free(filelist[n_file]);
+                n_file++;
+                n_game++;
+            }
+            else {
+                free(filelist[n_file]);
+                n_file++;
+            }
+        }
+    }
+    free(filelist);
+    return string(message);
+}
 
 
 int main(int argc, char** argv) {
