@@ -547,9 +547,11 @@ string Server::debug_mode(vector<string> request) {
 
 string Server::show_trials(string plid) {
     string message;
+    string Fdata;
+    string trials = "";
     FILE *file;
-    char file_name[24];
-    char buffer[128];
+    char file_name[24], buffer[128], guess[4], trial_aux[40];
+    int nB, nW, time_elapsed;
     if (FindGame(plid, NULL)) {
         string file_n = "GAMES/GAME_" + plid + ".txt";
         if ((file = fopen(file_n.c_str(), "r")) == NULL) {
@@ -558,7 +560,11 @@ string Server::show_trials(string plid) {
         }
         message = "RST ACT STATE_" + plid + ".txt";
         while (fgets(buffer, 128, file)) {
-            write(1, buffer, strlen(buffer));
+            if (buffer[0] == 'T') {
+                sscanf(buffer, "T: %s %d %d %d\n", guess, &nB, &nW, &time_elapsed);
+                sprintf(trial_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
+                write(1, trial_aux, strlen(trial_aux));
+            }
         }
     } else if (FindLastGame((char *) plid.c_str(), file_name)) {
 
