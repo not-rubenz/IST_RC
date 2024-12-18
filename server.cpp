@@ -149,6 +149,7 @@ void Server::receive_request(){
 
             n = receiveTCP(new_fd, bufferTCP, 4);
             write(1, bufferTCP, n);
+            string message = handle_request(bufferTCP);
             close(new_fd);
         }
 
@@ -161,14 +162,6 @@ void Server::receive_request(){
                 exit(EXIT_FAILURE);
             }
             write(1, bufferUDP, n);
-
-            // handle_request(bufferUDP);
-
-            // string jj = "jjboce\n";
-            // if (sendto(udp_fd, jj.c_str(), sizeof(jj), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
-            //     fprintf(stderr, "Unable to send message through UDP.\n");
-            //     exit(EXIT_FAILURE);
-            // }
 
             string message = handle_request(bufferUDP);
 
@@ -318,6 +311,9 @@ string Server::handle_error(int errcode) {
         case NO_ONGOING_GAME:
             message = "RQT NOK\n";
             return message;
+        case NO_GAMES:
+            message = "RST NOK\n";
+            return message;
     }
     return NULL;
 }
@@ -370,7 +366,7 @@ string Server::start_game(vector<string> request) {
     new_game.max_playtime = atoi(max_playtime.c_str());
     new_game.start_time = now;
     new_game.n_tries = 0;
-    new_game.score = "000";
+    new_game.score = 0;
     games[PLID] = new_game;
 
     string message = "RSG OK\n";
@@ -461,12 +457,12 @@ string Server::try_colors(vector<string> request) {
 
     close(fd);
 
+    games[PLID].n_tries++;
+    games[PLID].tries.push_back(guess);
+
     if (nB == 4) {
         end_game(PLID, GAME_WIN);
     }
-
-    games[PLID].n_tries++;
-    games[PLID].tries.push_back(guess);
 
     string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
     return message;
@@ -526,6 +522,26 @@ string Server::debug_mode(vector<string> request) {
 
 
 string Server::show_trials(vector<string> request) {
+    string PLID = request[1];
+    string message;
+    FILE *file;
+    char file_name[24];
+    char buffer[128];
+    if (FindGame(PLID, file_name)) {
+        message = "RST ACT STATE_" + PLID + ".txt";
+        if ((file = fopen(file_name, "r")) == NULL) {
+            fprintf(stderr, "Error opening file.\n");
+            exit(EXIT_FAILURE);
+        }
+        fgets(buffer, 128, file);
+        while (fgets(buffer, 128, file)) {
+            printf(buffer);
+        }
+    } else if (FindLastGame((char *) PLID.c_str(), file_name)) {
+
+    } else {
+        return handle_error(NO_GAMES);
+    }
 
 }
 
@@ -575,28 +591,33 @@ void Server::end_game(string plid, int status) {
     switch(status) {
         case GAME_WIN:
             s_status = "_W";
-            // getScore()
-            score_file_name = "SCORES/" + games[plid].score + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
-            if ((fd = open(score_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
-                fprintf(stderr, "Error opening file.\n");
-                exit(EXIT_FAILURE);
-            }
-
-            sprintf(buffer, "%s %s %s %d %c\n", games[plid].score.c_str(), plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode);
-            sendTCP(fd, buffer, strlen(buffer));
-            close(fd);
-
+            getScore(plid);
             break;
         case GAME_FAIL:
             s_status = "_F";
+            games[plid].score = 0;
             break;
         case GAME_QUIT:
             s_status = "_Q";
+            games[plid].score = 0;
             break;
         case GAME_TIMEOUT:
             s_status = "_T";
+            games[plid].score = 0;
             break;
     }
+
+    char score_aux[4];
+    sprintf(score_aux, "%03d", games[plid].score);
+    score_file_name = "SCORES/" + string(score_aux) + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
+    if ((fd = open(score_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+        fprintf(stderr, "Error opening file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    sprintf(buffer, "%03d %s %s %d %c\n", games[plid].score, plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode);
+    sendTCP(fd, buffer, strlen(buffer));
+    close(fd);
 
     string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + s_status + ".txt";
 
@@ -604,6 +625,14 @@ void Server::end_game(string plid, int status) {
         fprintf(stderr, "Error renaming file.\n");
         exit(EXIT_FAILURE);
     }
+
+    games.erase(plid);
+}
+
+void Server::getScore(string plid) {
+
+    games[plid].score = ((MAX_TRIALS - 1) - (games[plid].n_tries - 1)) * 100 / (MAX_TRIALS - 1);
+
 }
 
 // Find GAME_(PLID).txt
@@ -630,7 +659,6 @@ int Server::FindGame(std::string PLID, const char *fname) {
     return found;
 }
 
-
 int Server::FindLastGame(char* PLID, char *fname) {
     struct dirent ** filelist;
     int n_entries, found;
@@ -653,6 +681,8 @@ int Server::FindLastGame(char* PLID, char *fname) {
     }
     return (found);
 }
+
+
 
 int main(int argc, char** argv) {
 

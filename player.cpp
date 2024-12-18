@@ -162,6 +162,7 @@ void Player::start_cmd(string line) {
     if (!strcmp(cmd, "RSG") && !strcmp(status, "OK")) {
         plid = input[0];
         max_playtime = input[1];
+        n_tries = 1;
         string message = "New game started (max " + max_playtime + " sec)\n";
         write(1, message.c_str(), strlen(message.c_str()));
     }
