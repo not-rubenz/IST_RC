@@ -38,6 +38,7 @@ typedef struct GAME {
     int n_tries;
     vector<string> tries;
     int score;
+    int on_going;
 } GAME;
 
 class Server {
