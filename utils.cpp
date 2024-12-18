@@ -126,3 +126,7 @@ int valid_color(string color) {
     char c = color[0];
     return c == 'R' || c == 'G' || c == 'B' || c == 'Y' || c == 'O' || c == 'P';
 }
+
+int reverse_alphasort(const struct dirent** a, const struct dirent** b) {
+    return strcmp((*b)->d_name, (*a)->d_name); // Swap a and b
+}
