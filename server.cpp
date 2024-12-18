@@ -595,9 +595,15 @@ string Server::show_trials(string plid) {
 
 string Server::scoreboard() {
     string message;
-    message = string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
+    char* top_score;
+    if (!FindTopScores(top_score)) {
+        message = "RSS EMPTY";
+        return message;
+    }
+
+    message += string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
             + string("           SCORE   PLAYER     CODE     NO TRIALS    MODE\n\n");
-    message += FindTopScores();
+    message += top_score;
     return message;
 }
 
@@ -730,21 +736,20 @@ int Server::FindLastGame(char* PLID, char *fname) {
     return (found);
 }
 
-string Server::FindTopScores() {
+int Server::FindTopScores(char* message) {
     struct dirent** filelist;
     int n_entries;
     char dirname[20];
-    int n_game = 1;
+    int n_game = 0;
     int n_file = 0;
     char buffer[128];
     FILE* fptr;
     vector<string> file_content;
-    char message[512];
 
     n_entries = scandir("SCORES/", &filelist, NULL, alphasort);
     if (n_entries <= 0) {
-        fprintf(stderr, "sandir error\n");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "scandir error\n");
+        return 0;
     }
     else {
         while (n_file < 10 && n_file < n_entries) {
@@ -754,6 +759,7 @@ string Server::FindTopScores() {
                         fprintf(stderr, "Error opening file.\n");
                         exit(EXIT_FAILURE);
                 }
+                n_game++;
                 fgets(buffer, 128, fptr);
                 file_content = split_line(buffer);
 
@@ -774,7 +780,6 @@ string Server::FindTopScores() {
 
                 free(filelist[n_file]);
                 n_file++;
-                n_game++;
             }
             else {
                 free(filelist[n_file]);
@@ -783,7 +788,8 @@ string Server::FindTopScores() {
         }
     }
     free(filelist);
-    return string(message);
+
+    return n_game;
 }
 
 
