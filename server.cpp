@@ -165,8 +165,6 @@ void Server::receive_request(){
             write(1, bufferUDP, strlen(bufferUDP));
             string message = handle_request_udp(bufferUDP);
 
-            sleep(10);
-
             if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
                 fprintf(stderr, "Unable to send message through UDP.\n");
                 exit(EXIT_FAILURE);
