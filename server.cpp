@@ -161,7 +161,6 @@ void Server::receive_request(){
                 fprintf(stderr, "Unable to receive message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
-            write(1, bufferUDP, n);
 
             string message = handle_request_udp(bufferUDP);
 
@@ -189,6 +188,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
     char file_name[20];
+    string message;
 
     // if (request_size < 2) {
     //     return handle_error(INVALID_INPUT);
@@ -218,7 +218,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     else if (!strcmp(command, TRY_REQUEST)) {
         if (request_size != 7) {
             return handle_error(INVALID_TRY_ARG);
-        } else if (!games[request[1]].on_going) {
+        } else if (!games.count(request[1])) {
             return handle_error(OUT_OF_CONTEXT);
         }
         return try_colors(request);
@@ -394,6 +394,10 @@ string Server::start_game(vector<string> request) {
     games[PLID] = new_game;
 
     string message = "RSG OK\n";
+    if (verbose) {
+        string verbose_msg = "PLID=" + PLID + ": new game (max " + max_playtime + " sec); Colors: " + games[PLID].colors + "\n";
+        sendTCP(1, verbose_msg, verbose_msg.size());
+    }
     return message;
 }
 
@@ -478,8 +482,19 @@ string Server::try_colors(vector<string> request) {
     games[PLID].n_tries++;
     games[PLID].tries.push_back(guess);
 
+
     if (nB == 4) {
+        if (verbose) {
+            string verbose_msg = "PLID=" + PLID + ": try " + games[PLID].colors + " - " + "nB = " + std::to_string(nB) + ", nW = " + std::to_string(nW) + " WIN (game ended)\n";
+            sendTCP(1, verbose_msg, verbose_msg.size());
+        }
         end_game(PLID, GAME_WIN);
+    }
+    else {
+        if (verbose) {
+            string verbose_msg = "PLID=" + PLID + ": try " + games[PLID].colors + " - " + "nB = " + std::to_string(nB) + ", nW = " + std::to_string(nW) + " not guessed\n";
+            sendTCP(1, verbose_msg, verbose_msg.size());
+        }
     }
 
     if (current_game.n_tries == MAX_TRIALS - 1) {
@@ -492,9 +507,11 @@ string Server::try_colors(vector<string> request) {
 
     string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
 
-    if (games[PLID].on_going == 0)
+    if (games[PLID].on_going == 0) {
         games[PLID].on_going = 1;
+    }
 
+    
     return message;
 }
 
@@ -601,8 +618,13 @@ string Server::show_trials(string plid) {
         } else {
             Fdata += "     --- Transactions found: " + std::to_string(n_trials) + " ---\n\n" + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
         }
+        
+        if (verbose) {
+            string verbose_msg = "PLID=" + plid + ": show trials: \"" + file_n + "\"\n";
+            sendTCP(1, verbose_msg, verbose_msg.size());
+        }
 
-    } else if (FindLastGame((char *) plid.c_str(), file_name)) {
+    } else if (FindLastGame(plid.data(), file_name)) {
 
         char termination, mode;
         char target[5], end_date[11], end_time[9];
@@ -662,6 +684,11 @@ string Server::show_trials(string plid) {
         Fdata += "     Termination: " + termination_str + " at " + string(end_date) + " " + string(end_time) +
                  ", Duration: " + std::to_string(duration) + "s\n\n";
 
+        if (verbose) {
+            string verbose_msg = "PLID=" + plid + ": show trials: \"" + string(file_name) + "\"\n";
+            sendTCP(1, verbose_msg, verbose_msg.size());
+        }
+
     } else {
         return handle_error(NO_GAMES);
     }
@@ -681,10 +708,16 @@ string Server::scoreboard() {
         message = "RSS EMPTY";
         return message;
     }
-    message = string("RSS OK ") + fname + std::to_string(top_score.size() + 143) + "\n";
-    message += string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
-            + string("                 SCORE PLAYER     CODE    NO TRIALS   MODE\n\n");
-    message += top_score;
+    message = string("RSS OK ") + fname + std::to_string(top_score.size() + 143) + "\n"
+            + string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
+            + string("                 SCORE PLAYER     CODE    NO TRIALS   MODE\n\n")
+            + top_score;
+
+    if (verbose) {
+        string verbose_msg = "Send scoreboard file \"" +  string(fname) + "\"\n";
+        sendTCP(1, verbose_msg, verbose_msg.size());
+    }
+
     return message;
 }
 
