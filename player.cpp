@@ -138,6 +138,11 @@ void Player::command_input() {
         else if (!strcmp(command, DEBUG)) {
             debug_cmd(args);
         }
+
+        else {
+            string message = "Please enter a valid command.\n";
+            write(1, message.c_str(), strlen(message.c_str()));
+        }
     }
 }
 
@@ -157,15 +162,25 @@ void Player::start_cmd(string line) {
 
     write(1, buffer, ret);
     
+    string response;
     char cmd[4], status[4];
     sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(cmd, "RSG") && !strcmp(status, "OK")) {
-        plid = input[0];
-        max_playtime = input[1];
-        n_tries = 1;
-        string message = "New game started (max " + max_playtime + " sec)\n";
-        write(1, message.c_str(), strlen(message.c_str()));
+    if (!strcmp(cmd, "RSG")) {
+        if (!strcmp(status, "OK")) {
+            plid = input[0];
+            max_playtime = input[1];
+            n_tries = 1;
+            response = "New game started (max " + max_playtime + " sec)\n";
+        } else if (!strcmp(status, "NOK")) {
+            response = "Error: There's an ongoing game!\n";
+        } else {
+            response = "Error: Invalid arguments!\n";
+        }
+    } else {
+        response = "Error: Invalid Input.\n";
     }
+    write(1, response.c_str(), strlen(response.c_str()));
+
 }
 
 
@@ -181,19 +196,43 @@ void Player::try_cmd(string line) {
     if (ret == -1) exit(-1);
     write(1, buffer, ret);
 
-    char cmd[4], status[4];
+    /* Write response to terminal */
+    string response;
+    int nB, nW;
+    char cmd[4], status[4], colors[8];
     sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(cmd, "RTR") & !strcmp(status, "OK")) {
-        sscanf(buffer, "%*s %*s %d", &n_tries);
-        n_tries++;
+    if (!strcmp(cmd, "RTR")) {
+        if (!strcmp(status, "OK")) {
+            sscanf(buffer, "%*s %*s %d %d %d", &n_tries, &nB, &nW);
+            n_tries++;
+            response = "" "nB = " + std::to_string(nB) + ", nW = " + std::to_string(nW) + "\n";
+        } else if (!strcmp(status, "DUP")) {
+            response = "Error: Duplicated guess.\n";
+        } else if (!strcmp(status, "INV")) {
+            response = "Error: Invalid trial.\n";
+        } else if (!strcmp(status, "NOK")) {
+            response = "Error: Out of context.\n";
+        } else if (!strcmp(status, "ENT")) {
+            sscanf(buffer, "%*s %*s %[^\n]", colors);
+            response = "Out of moves. The solution was: " + string(colors) + "\n";
+        } else if (!strcmp(status, "ETM")) {
+            sscanf(buffer, "%*s %*s %[^\n]", colors);
+            response = "Out of time. The solution was: " + string(colors) + "\n";
+        } else {
+            response = "Error: Invalid arguments!\n";
+        }
+    } else {
+        response = "Error: Invalid Input.\n";
     }
+    write(1, response.c_str(), strlen(response.c_str()));
+
 }
 
 void Player::show_trials_cmd() {
     int fd;
     ssize_t ret;
     string message = "STR " + plid + "\n";
-    char buffer[2048], status[4], Fname[24], Fsize[3];
+    char buffer[2048], Fname[24], Fsize[3];
 
     connect_TCP(gsip, gsport);
 
@@ -203,23 +242,29 @@ void Player::show_trials_cmd() {
     ret = receiveTCP(TCPsocket.fd, buffer, 2048);
     if (ret == -1) exit(-1);
 
-    sendTCP(1, buffer, ret);
-
-    if (strcmp(buffer, "ERR")) {
-        sscanf(buffer, "RST %s", status);
-        if (!strcmp(status, "ACT") || !strcmp(status, "FIN")) {
+    string response;
+    char cmd[4], status[4];
+    sscanf(buffer, "%s %s", cmd, status);
+    if (!strcmp(buffer, "RST")) {
+        if (!strcmp(status, "NOK")) {
+            response = "No games found.\n";
+        } else {
             sscanf(buffer, "RST %s %s %s", status, Fname, Fsize);
-            string buffer_string = string(buffer);
-            buffer_string.erase(0, buffer_string.find("\n") + 1);
+            response = string(buffer);
+            response.erase(0, response.find("\n") + 1);
             if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            sendTCP(fd, buffer_string.c_str(), atoi(Fsize));
+            sendTCP(fd, response.c_str(), atoi(Fsize));
             close(fd);
         }
+    } else {
+        response = "Error: Invalid Input.\n";
     }
+    write(1, response.c_str(), atoi(Fsize));
     tcp_terminate();
+
 }
 
 
@@ -227,7 +272,7 @@ void Player::score_board_cmd() {
     int fd;
     ssize_t ret;
     string message = "SSB\n";
-    char buffer[2048], status[4], Fname[24], Fsize[4];
+    char buffer[2048], Fname[24], Fsize[4];
 
     connect_TCP(gsip, gsport);
 
@@ -237,24 +282,29 @@ void Player::score_board_cmd() {
     ret = receiveTCP(TCPsocket.fd, buffer, 2048);
     if (ret == -1) exit(-1);
 
-    sendTCP(1, buffer, ret);
-
-    if (strcmp(buffer, "ERR")) {
-        sscanf(buffer, "RSS %s", status);
+    string response;
+    char cmd[4], status[6];
+    sscanf(buffer, "%s %s", cmd, status);
+    if (!strcmp(buffer, "RSS")) {
         if (!strcmp(status, "OK")) {
             sscanf(buffer, "RSS %s %s %s", status, Fname, Fsize);
-            string buffer_string = string(buffer);
-            buffer_string.erase(0, buffer_string.find("\n") + 1);
+            response = string(buffer);
+            response.erase(0, response.find("\n") + 1);
             if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            sendTCP(fd, buffer_string.c_str(), buffer_string.size());
+            sendTCP(fd, response.c_str(), response.size());
             close(fd);
+        } else {
+            response = "No games found.\n";
         }
+    } else {
+        response = "Error: Invalid Input.\n";
     }
+    write(1, response.c_str(), atoi(Fsize));
     tcp_terminate();
-
+    
 }
 
 void Player::quit_cmd() {
@@ -273,10 +323,30 @@ void Player::quit_cmd() {
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
     if (ret == -1) exit(-1);
     write(1, buffer, ret);
+
+    string response;
+    char cmd[4], status[4], colors[8];
+    sscanf(buffer, "%s %s", cmd, status);
+    if (!strcmp(cmd, "RQT")) {
+        if (!strcmp(status, "OK")) {
+            sscanf(buffer, "%*s %*s %[^\n]", colors);
+            response = "Game quit. The solution was: " + string(colors) + "\n";
+        } else if (!strcmp(status, "NOK")) {
+            response = "Error: There's not an ongoing game!\n";
+        } else {
+            response = "Error: An error occurred!\n";
+        }
+    } else {
+        response = "Error: Invalid Input.\n";
+    }
+    write(1, response.c_str(), strlen(response.c_str()));
+
 }
 
 void Player::exit_cmd() {
     quit_cmd();
+    string response = "Exiting game...\n";
+    write(1, response.c_str(), strlen(response.c_str()));
     player_terminate();
 }
 
@@ -292,16 +362,25 @@ void Player::debug_cmd(string line) {
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
     if (ret == -1) exit(-1);
 
-    write(1, buffer, ret);
+    string response;
     char cmd[4], status[4];
     sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(cmd, "RDB") && !strcmp(status, "OK")) {
-        plid = input[0];
-        max_playtime = input[1];
-        n_tries = 1;
-        string message = "New game started (max " + max_playtime + " sec)\n";
-        write(1, message.c_str(), strlen(message.c_str()));
+    if (!strcmp(cmd, "RDB")) {
+        if (!strcmp(status, "OK")) {
+            plid = input[0];
+            max_playtime = input[1];
+            n_tries = 1;
+            response = "New game started (max " + max_playtime + " sec)\n";
+        } else if (!strcmp(status, "NOK")) {
+            response = "Error: There's an ongoing game!\n";
+        } else {
+            response = "Error: Invalid arguments!\n";
+        }
+    } else {
+        response = "Error: Invalid Input.\n";
     }
+    write(1, response.c_str(), strlen(response.c_str()));
+
 }
 
 void Player::tcp_terminate() {

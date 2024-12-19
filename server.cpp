@@ -191,18 +191,14 @@ string Server::handle_request_udp(char* requestBuffer) {
     char file_name[20];
     string message;
 
-    // if (request_size < 2) {
-    //     return handle_error(INVALID_INPUT);
-    // }
-
-    if (!valid_PLID(request[1])) {
-        return handle_error(INVALID_PLID);
+    if (request_size < 2) {
+        return handle_error(INVALID_INPUT);
     }
 
     const char* command = request[0].c_str();
 
     if (!strcmp(command, START_REQUEST)) {
-        if (request_size != 3 || !valid_time(request[2])) {
+        if (request_size != 3 || !valid_PLID(request[1]) || !valid_time(request[2])) {
             return handle_error(INVALID_START_ARG);
         } else if (games[request[1]].on_going) {
             time_t now = time(nullptr);
@@ -217,7 +213,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     }
 
     else if (!strcmp(command, TRY_REQUEST)) {
-        if (request_size != 7) {
+        if (request_size != 7 || !valid_PLID(request[1])) {
             return handle_error(INVALID_TRY_ARG);
         } else if (!games.count(request[1])) {
             return handle_error(OUT_OF_CONTEXT);
@@ -225,26 +221,8 @@ string Server::handle_request_udp(char* requestBuffer) {
         return try_colors(request);
     }
 
-    // else if (!strcmp(command, SHOW_TRIAL_REQUEST)) {
-    //     if (request_size != 2) {
-    //         return handle_error(INVALID_ST_TAG);
-    //     }
-    //     if (ret) {
-    //         time_t now = time(nullptr);
-    //         int time_elapsed = (int) difftime(now, games[request[1]].start_time);
-    //         if (time_elapsed >= games[request[1]].max_playtime) {
-    //             end_game(request[1], GAME_TIMEOUT);
-    //         }
-    //     }
-    //     return show_trials(request);
-    // }
-
-    // else if (!strcmp(command, SCOREBOARD_REQUEST)) {
-    //     return scoreboard(request);
-    // }
-
     else if (!strcmp(command, QUIT_REQUEST)) {
-        if (request_size != 2) {
+        if (request_size != 2 || !valid_PLID(request[1])) {
             return handle_error(INVALID_QUIT_ARG);
         } else if (!FindGame(request[1], NULL)) {
             return handle_error(NO_ONGOING_GAME);
@@ -253,7 +231,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     }
 
     else if (!strcmp(command, DEBUG_REQUEST)) {
-        if (request_size != 7 || !valid_time(request[2])) {
+        if (request_size != 7 || !valid_PLID(request[1]) || !valid_time(request[2])) {
             return handle_error(INVALID_DEBUG_ARG);
         }
         else if (games[request[1]].on_going) {
@@ -268,7 +246,7 @@ string Server::handle_request_udp(char* requestBuffer) {
         return debug_mode(request);
     }
     else {
-        return handle_error(INVALID_CMD_SYNTAX);
+        return handle_error(INVALID_INPUT);
     }
 
 }
@@ -305,15 +283,21 @@ string Server::handle_error(int errcode) {
     switch (errcode) {
         case INVALID_INPUT:
         case INVALID_PLID:
-        case INVALID_START_ARG:
-        case INVALID_TRY_ARG:
-        case INVALID_QUIT_ARG:
-        case INVALID_DEBUG_ARG:
-            write(1, "ERR\n", 4);
             message = "ERR\n";
             return message;
+        case INVALID_START_ARG:
+            message = "RSG ERR\n";
+            return message;
+        case INVALID_TRY_ARG:
+            message = "RTR ERR\n";
+            return message;
+        case INVALID_QUIT_ARG:
+            message = "RQT ERR\n";
+            return message;
+        case INVALID_DEBUG_ARG:
+            message = "RDB ERR\n";
+            return message;
         case ONGOING_GAME:
-            write(1, "RSG NOK\n", 8);
             message = "RSG NOK\n";
             return message;
         case DUPLICATED_GUESS:
@@ -330,9 +314,6 @@ string Server::handle_error(int errcode) {
             return message;
         case OUT_OF_TIME:
             message = "RTR ETM ";
-            return message;
-        case INVALID_COLOR:
-            message = "RTR ERR\n";
             return message;
         case NO_ONGOING_GAME:
             message = "RQT NOK\n";
@@ -428,7 +409,7 @@ string Server::try_colors(vector<string> request) {
 
     if (!valid_color(request[2]) || !valid_color(request[3])
         || !valid_color(request[4]) || !valid_color(request[5])) {
-            return handle_error(INVALID_COLOR);
+            return handle_error(INVALID_TRY_ARG);
     }
     
     if (current_game.n_tries == atoi(nT.c_str()) & current_game.n_tries != 0) {
@@ -532,7 +513,7 @@ string Server::debug_mode(vector<string> request) {
 
     if (!valid_color(request[3]) || !valid_color(request[4])
         || !valid_color(request[5]) || !valid_color(request[6])) {
-            return handle_error(INVALID_COLOR);
+            return handle_error(INVALID_DEBUG_ARG);
     }
 
     if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
