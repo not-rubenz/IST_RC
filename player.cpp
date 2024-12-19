@@ -154,11 +154,22 @@ void Player::start_cmd(string line) {
 
     vector<string> input = split_line(line);
 
+    struct timeval timeout;
+    timeout.tv_sec = TIMEOUT_SEC;
+    timeout.tv_usec = 0;
+    setsockopt(UDPsocket.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error sending message through UDP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        printf("Client or server couldn't receive the message, please try again.\n");
+        return;
+    }
 
     write(1, buffer, ret);
     
@@ -190,10 +201,17 @@ void Player::try_cmd(string line) {
     char buffer[128];
     
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error sending message through UDP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        printf("Client or server couldn't receive the message, please try again.\n");
+        return;
+    }
+
     write(1, buffer, ret);
 
     /* Write response to terminal */
@@ -312,16 +330,23 @@ void Player::quit_cmd() {
     string message;
     char buffer[128];
     if (!strcmp(plid.c_str(), "")) {
-        message = "QUT\n";
-    } else {
-        message = "QUT " + plid + '\n';
+        printf("There isn't an active game.\n");
+        return;
     }
+    message = "QUT " + plid + '\n';
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error sending message through UDP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        printf("Client or server couldn't receive the message, please try again.\n");
+        return;
+    }
+
     write(1, buffer, ret);
 
     string response;
@@ -331,6 +356,9 @@ void Player::quit_cmd() {
         if (!strcmp(status, "OK")) {
             sscanf(buffer, "%*s %*s %[^\n]", colors);
             response = "Game quit. The solution was: " + string(colors) + "\n";
+            plid = "";
+            max_playtime = "";
+            n_tries = 1;
         } else if (!strcmp(status, "NOK")) {
             response = "Error: There's not an ongoing game!\n";
         } else {
@@ -344,7 +372,9 @@ void Player::quit_cmd() {
 }
 
 void Player::exit_cmd() {
-    quit_cmd();
+    if (strcmp(plid.c_str(), "")) {
+        quit_cmd();
+    }
     string response = "Exiting game...\n";
     write(1, response.c_str(), strlen(response.c_str()));
     player_terminate();
@@ -357,10 +387,16 @@ void Player::debug_cmd(string line) {
     vector<string> input = split_line(line);
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error sending message through UDP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     ret = recvfrom(UDPsocket.fd, buffer, 128, 0, UDPsocket.res->ai_addr, &UDPsocket.res->ai_addrlen);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        printf("Client or server couldn't receive the message, please try again.\n");
+        return;
+    }
 
     string response;
     char cmd[4], status[4];

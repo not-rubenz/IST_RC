@@ -8,6 +8,7 @@
 #define MAX_LINE_SIZE 128
 #define MAX_PLAYTIME 600
 #define MAX_COMMAND_SIZE 4
+#define TIMEOUT_SEC 5
 
 ///////////////////////////////////////////////////
 #define START "start"
