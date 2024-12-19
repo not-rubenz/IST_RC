@@ -202,7 +202,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     if (!strcmp(command, START_REQUEST)) {
         if (request_size != 3 || !valid_PLID(request[1]) || !valid_time(request[2])) {
             return handle_error(INVALID_START_ARG);
-        } else if (games[request[1]].on_going) {
+        } else if (games.count(request[1]) & games[request[1]].on_going) {
             time_t now = time(nullptr);
             int time_elapsed = (int) difftime(now, games[request[1]].start_time);
             if (time_elapsed >= games[request[1]].max_playtime) {
@@ -226,7 +226,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     else if (!strcmp(command, QUIT_REQUEST)) {
         if (request_size != 2 || !valid_PLID(request[1])) {
             return handle_error(INVALID_QUIT_ARG);
-        } else if (!FindGame(request[1], NULL)) {
+        } else if (!games.count(request[1])) {
             return handle_error(NO_ONGOING_GAME);
         }
         return quit_game(request);
@@ -236,7 +236,7 @@ string Server::handle_request_udp(char* requestBuffer) {
         if (request_size != 7 || !valid_PLID(request[1]) || !valid_time(request[2])) {
             return handle_error(INVALID_DEBUG_ARG);
         }
-        else if (games[request[1]].on_going) {
+        else if (!games.count(request[1]) & games[request[1]].on_going) {
             time_t now = time(nullptr);
             int time_elapsed = (int) difftime(now, games[request[1]].start_time);
             if (time_elapsed >= games[request[1]].max_playtime) {
@@ -333,11 +333,12 @@ string Server::start_game(vector<string> request) {
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     GAME new_game;
-    int fd;
+    FILE *file;
+    char buffer[128];
 
     time_t now = time(nullptr);
 
-    if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+    if ((file = fopen(file_name.c_str(), "w")) == NULL) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
     }
@@ -358,7 +359,8 @@ string Server::start_game(vector<string> request) {
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time); 
 
-    dprintf(fd, "%s %c %s %s %s %s %ld\n",
+
+    sprintf(buffer, "%s %c %s %s %s %s %ld\n",
             PLID.c_str(),     
             mode[0],             
             code,             
@@ -367,8 +369,13 @@ string Server::start_game(vector<string> request) {
             time_str, 
             now);
 
-
-    close(fd);
+    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    if (n < strlen(buffer)) {
+        fclose(file);
+        fprintf(stderr, "Error writing into file.\n");
+        exit(EXIT_FAILURE);
+    }
+    fclose(file);
 
     new_game.mode = mode;
     new_game.colors = string(code);
@@ -396,7 +403,7 @@ string Server::try_colors(vector<string> request) {
     string nT = request[6];
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     char buffer[128];
-    int fd;
+    FILE *file;
     GAME current_game = games[PLID];
     string target = current_game.colors;
     string guess = C1 + C2 + C3 + C4;
@@ -430,44 +437,49 @@ string Server::try_colors(vector<string> request) {
         return handle_error(INVALID_TRIAL);
     }
 
-    if ((fd = open(file_name.c_str(), O_WRONLY | O_APPEND, 0755)) < 0) {
+    if ((file = fopen(file_name.c_str(), "a")) == NULL) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
     }
 
-    int nB = 0; // Letters in the correct position
-    int nW = 0;   // Correct letters in the wrong position
+    int nB = 0;
+    int nW = 0;
 
     const char valid_colors[] = {'R', 'G', 'B', 'Y', 'O', 'P'};
     int target_counts[6] = {0, 0, 0, 0, 0, 0};
 
-    // Step 1: Count correct positions and prepare counts for wrong positions
     for (size_t i = 0; i < 4; ++i) {
         if (target[i] == guess[i]) {
-            nB++; // Exact match
+            nB++;
         } else {
             int target_index = FindIndex(valid_colors, target[i], 6);
-            target_counts[target_index]++; // Count available letters in target for wrong positions
+            target_counts[target_index]++;
         }
     }
 
-    // Step 2: Count correct letters in wrong positions
     for (size_t i = 0; i < 4; ++i) {
         int guess_index = FindIndex(valid_colors, guess[i], 6);
         if (target[i] != guess[i] && target_counts[guess_index] > 0) {
-            nW++;         // Found a correct letter in the wrong position
-            target_counts[guess_index]--; // Decrement the available count
+            nW++;
+            target_counts[guess_index]--;
         }
     }
 
     sprintf(buffer, "T: %s %d %d %d\n", guess.c_str(), nB, nW, time_elapsed);
-    sendTCP(fd, buffer, strlen(buffer));
-
-    close(fd);
+    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    if (n < strlen(buffer)) {
+        fclose(file);
+        fprintf(stderr, "Error writing into file.\n");
+        exit(EXIT_FAILURE);
+    }
+    fclose(file);
 
     games[PLID].n_tries++;
     games[PLID].tries.push_back(guess);
 
+    if (games[PLID].on_going == 0) {
+        games[PLID].on_going = 1;
+    }
 
     if (nB == 4) {
         if (verbose) {
@@ -493,10 +505,6 @@ string Server::try_colors(vector<string> request) {
 
     string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + "\n";
 
-    if (games[PLID].on_going == 0) {
-        games[PLID].on_going = 1;
-    }
-
     return message;
 }
 
@@ -507,7 +515,7 @@ string Server::debug_mode(vector<string> request) {
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     char buffer[128];
     GAME new_game;
-    int fd;
+    FILE *file;
 
     time_t now = time(nullptr);
     int time_elapsed = (int) difftime(now, games[PLID].start_time);
@@ -517,7 +525,7 @@ string Server::debug_mode(vector<string> request) {
             return handle_error(INVALID_DEBUG_ARG);
     }
 
-    if ((fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+    if ((file = fopen(file_name.c_str(), "w")) == NULL) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
     }
@@ -537,7 +545,7 @@ string Server::debug_mode(vector<string> request) {
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time); 
 
-    dprintf(fd, "%s %c %s %s %s %s %ld\n",
+    sprintf(buffer, "%s %c %s %s %s %s %ld\n",
             PLID.c_str(),     
             mode[0],             
             code,             
@@ -546,7 +554,13 @@ string Server::debug_mode(vector<string> request) {
             time_str, 
             now);
 
-    close(fd);
+    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    if (n < strlen(buffer)) {
+        fclose(file);
+        fprintf(stderr, "Error writing into file.\n");
+        exit(EXIT_FAILURE);
+    }
+    fclose(file);
 
     new_game.mode = mode;
     new_game.colors = string(code);
@@ -679,7 +693,6 @@ string Server::show_trials(string plid) {
     }
     
     message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
-    write(1, message.c_str(), strlen(message.c_str()));
     fclose(file);
     return message;
 
@@ -720,12 +733,12 @@ string Server::quit_game(vector<string> request) {
 }
 
 void Server::end_game(string plid, int status) {
-    int fd;
+    FILE *file;
     char buffer[32];
     string s_status;
     string score_file_name;
     string file_name = "GAMES/GAME_" + plid + ".txt";
-    if ((fd = open(file_name.c_str(), O_WRONLY | O_APPEND, 0755)) < 0) {
+    if ((file = fopen(file_name.c_str(), "a")) == NULL) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
     }
@@ -737,8 +750,14 @@ void Server::end_game(string plid, int status) {
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time);
 
     sprintf(buffer, "%s %s %d\n", date, time_str, time_elapsed);
-    sendTCP(fd, buffer, strlen(buffer));
-    close(fd);
+
+    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    if (n < strlen(buffer)) {
+        fclose(file);
+        fprintf(stderr, "Error writing into file.\n");
+        exit(EXIT_FAILURE);
+    }
+    fclose(file);
 
     switch(status) {
         case GAME_WIN:
@@ -764,13 +783,18 @@ void Server::end_game(string plid, int status) {
         char score_aux[4];
         sprintf(score_aux, "%03d", games[plid].score);
         score_file_name = "SCORES/" + string(score_aux) + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
-        if ((fd = open(score_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+        if ((file = fopen(score_file_name.c_str(), "w")) == NULL) {
             fprintf(stderr, "Error opening file.\n");
             exit(EXIT_FAILURE);
         }
         sprintf(buffer, "%03d %s %s %d %s\n", games[plid].score, plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode.c_str());
-        sendTCP(fd, buffer, strlen(buffer));
-        close(fd);
+        int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+        if (n < strlen(buffer)) {
+            fclose(file);
+            fprintf(stderr, "Error writing into file.\n");
+            exit(EXIT_FAILURE);
+        }
+        fclose(file);
     }
 
     string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + s_status + ".txt";
@@ -804,7 +828,7 @@ int Server::FindGame(string PLID, const char *fname) {
 
     while ((entry = readdir(dir)) != NULL) {
         if (!strcmp(entry->d_name, file_name.c_str())) {
-            fname = file_name.c_str(); // Update fname if file is found
+            fname = file_name.c_str();
             found = 1;
             break;
         }

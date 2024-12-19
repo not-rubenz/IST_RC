@@ -247,7 +247,7 @@ void Player::try_cmd(string line) {
 }
 
 void Player::show_trials_cmd() {
-    int fd;
+    FILE *file;
     ssize_t ret;
     string message = "STR " + plid + "\n";
     char buffer[2048], Fname[24], Fsize[3];
@@ -270,12 +270,17 @@ void Player::show_trials_cmd() {
             sscanf(buffer, "RST %s %s %s", status, Fname, Fsize);
             response = string(buffer);
             response.erase(0, response.find("\n") + 1);
-            if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+            if ((file = fopen(Fname, "w")) == NULL) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            sendTCP(fd, response.c_str(), atoi(Fsize));
-            close(fd);
+            int n = fwrite(response.c_str(), sizeof(char), atoi(Fsize), file);
+            if (n < atoi(response.c_str())) {
+                fclose(file);
+                fprintf(stderr, "Error writing into file.\n");
+                exit(EXIT_FAILURE);
+            }
+            fclose(file);
         }
     } else {
         response = "Error: Invalid Input.\n";
@@ -287,6 +292,7 @@ void Player::show_trials_cmd() {
 
 
 void Player::score_board_cmd() {
+    FILE *file;
     int fd;
     ssize_t ret;
     string message = "SSB\n";
@@ -309,12 +315,18 @@ void Player::score_board_cmd() {
             
             response = string(buffer);
             response.erase(0, response.find("\n") + 1);
-            if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
+            if ((file = fopen(Fname, "w")) == NULL) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            sendTCP(fd, response.c_str(), atoi(Fsize));
-            close(fd);
+            int n = fwrite(response.c_str(), sizeof(char), atoi(Fsize), file);
+            printf("%ld\n", strlen(response.c_str()));
+            if (n < atoi(Fsize)) {
+                fclose(file);
+                fprintf(stderr, "Error writing into file.\n");
+                exit(EXIT_FAILURE);
+            }
+            fclose(file);
         } else {
             response = "No games found.\n";
         }
