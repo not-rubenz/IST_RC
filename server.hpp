@@ -44,6 +44,7 @@ typedef struct GAME {
 class Server {
     string gsip, gsport;
     int verbose;
+    int topscore_requests;
     SOCKET UDPsocket;
     SOCKET TCPsocket;
     std::map<string, GAME> games;

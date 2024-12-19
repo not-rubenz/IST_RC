@@ -263,7 +263,7 @@ void Player::show_trials_cmd() {
     string response;
     char cmd[4], status[4];
     sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(buffer, "RST")) {
+    if (!strcmp(cmd, "RST")) {
         if (!strcmp(status, "NOK")) {
             response = "No games found.\n";
         } else {
@@ -303,16 +303,17 @@ void Player::score_board_cmd() {
     string response;
     char cmd[4], status[6];
     sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(buffer, "RSS")) {
+    if (!strcmp(cmd, "RSS")) {
         if (!strcmp(status, "OK")) {
-            sscanf(buffer, "RSS %s %s %s", status, Fname, Fsize);
+            sscanf(buffer, "RSS OK %s %s", Fname, Fsize);
+            
             response = string(buffer);
             response.erase(0, response.find("\n") + 1);
             if ((fd = open(Fname, O_WRONLY | O_CREAT | O_TRUNC, 0755)) < 0) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            sendTCP(fd, response.c_str(), response.size());
+            sendTCP(fd, response.c_str(), atoi(Fsize));
             close(fd);
         } else {
             response = "No games found.\n";

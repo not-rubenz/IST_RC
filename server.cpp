@@ -5,6 +5,7 @@
 
 Server::Server(int argc, char** argv) {
     verbose = 0;
+    topscore_requests = 0;
 
     connection_input(argc, argv);
     setup_server(gsport);
@@ -149,6 +150,7 @@ void Server::receive_request(){
 
             n = receiveWordTCP(new_fd, bufferTCP, 4);
             string message = handle_request_tcp(new_fd, bufferTCP);
+            write(1, message.c_str(), strlen(message.c_str()));
             sendTCP(new_fd, message, message.size());
             close(new_fd);
         }
@@ -483,19 +485,18 @@ string Server::try_colors(vector<string> request) {
 
     if (current_game.n_tries == MAX_TRIALS - 1) {
         if (nB != 4) {
+            string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
             end_game(PLID, GAME_FAIL);
+            return message;
         }
-        string message = handle_error(OUT_OF_GUESSES) + target[0] + " " + target[1] + " " + target[2] + " " + target[3] + "\n";
-        return message;
     }
 
-    string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + " " + C1 + " " + C2 + " " + C3 + " " + C4 + "\n";
+    string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + "\n";
 
     if (games[PLID].on_going == 0) {
         games[PLID].on_going = 1;
     }
 
-    
     return message;
 }
 
@@ -687,21 +688,24 @@ string Server::show_trials(string plid) {
 string Server::scoreboard() {
     string message;
     string top_score = "";
+    string Fdata = "-------------------------------- TOP 10 SCORES --------------------------------\n\n                 SCORE PLAYER     CODE    NO TRIALS   MODE\n\n";
     char fname[24] = "TOPSCORES_XXX.txt ";
+    sprintf(fname, "TOPSCORES_%07d.txt", topscore_requests);
     if (!FindTopScores(top_score)) {
         message = "RSS EMPTY";
         return message;
     }
-    message = string("RSS OK ") + fname + std::to_string(top_score.size() + 143) + "\n"
-            + string("-------------------------------- TOP 10 SCORES --------------------------------\n\n")
-            + string("                 SCORE PLAYER     CODE    NO TRIALS   MODE\n\n")
-            + top_score;
+    Fdata += top_score + "\n\n\n";
+    message = string("RSS OK ") + fname + " " + std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
 
     if (verbose) {
         string verbose_msg = "Send scoreboard file \"" +  string(fname) + "\"\n";
         sendTCP(1, verbose_msg, verbose_msg.size());
     }
 
+    if (++topscore_requests == 10000000) {
+        topscore_requests = 0;
+    }
     return message;
 }
 
