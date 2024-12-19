@@ -69,6 +69,7 @@ class Server {
         void getScore(string plid);
         void end_game(string plid, int status);
         int create_dir(const char* dirname);
+        int FindGame(string PLID, const char *fname);
         int FindLastGame(char *PLID, char *fname);
         int FindTopScores(string& message);
 };

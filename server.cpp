@@ -162,6 +162,7 @@ void Server::receive_request(){
                 exit(EXIT_FAILURE);
             }
 
+            write(1, bufferUDP, strlen(bufferUDP));
             string message = handle_request_udp(bufferUDP);
 
             if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
@@ -245,7 +246,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     else if (!strcmp(command, QUIT_REQUEST)) {
         if (request_size != 2) {
             return handle_error(INVALID_QUIT_ARG);
-        } else if (!games[request[1]].on_going) {
+        } else if (!FindGame(request[1], NULL)) {
             return handle_error(NO_ONGOING_GAME);
         }
         return quit_game(request);
@@ -255,7 +256,7 @@ string Server::handle_request_udp(char* requestBuffer) {
         if (request_size != 7 || !valid_time(request[2])) {
             return handle_error(INVALID_DEBUG_ARG);
         }
-        else if (!games[request[1]].on_going) {
+        else if (games[request[1]].on_going) {
             time_t now = time(nullptr);
             int time_elapsed = (int) difftime(now, games[request[1]].start_time);
             if (time_elapsed >= games[request[1]].max_playtime) {
@@ -294,6 +295,8 @@ string Server::handle_request_tcp(int fd, char* requestBuffer) {
     else if (!strcmp(requestBuffer, SCOREBOARD_REQUEST)) {
         return scoreboard();
     }
+
+    return handle_error(INVALID_INPUT);
 
 }
 
@@ -586,7 +589,7 @@ string Server::show_trials(string plid) {
     int max_playtime, nB, nW, time_elapsed, n_trials, time_left;
     time_t start_time;
     n_trials = 0;
-    if (games[plid].on_going) {
+    if (FindGame(plid, NULL)) {
         string file_n = "GAMES/GAME_" + plid + ".txt";
         if ((file = fopen(file_n.c_str(), "r")) == NULL) {
             fprintf(stderr, "Error opening file.\n");
@@ -624,7 +627,7 @@ string Server::show_trials(string plid) {
             sendTCP(1, verbose_msg, verbose_msg.size());
         }
 
-    } else if (FindLastGame(plid.data(), file_name)) {
+    } else if (FindLastGame((char *) plid.data(), file_name)) {
 
         char termination, mode;
         char target[5], end_date[11], end_time[9];
@@ -799,6 +802,30 @@ void Server::getScore(string plid) {
 
     games[plid].score = (MAX_TRIALS - (games[plid].n_tries - 1)) * 100 / MAX_TRIALS;
 
+}
+
+// Find GAME_(PLID).txt
+int Server::FindGame(string PLID, const char *fname) {
+    DIR *dir;
+    struct dirent *entry;
+    char dirname[] = "GAMES/";
+    std::string file_name = "GAME_" + PLID + ".txt";
+    int found = 0;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        return 0;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (!strcmp(entry->d_name, file_name.c_str())) {
+            fname = file_name.c_str(); // Update fname if file is found
+            found = 1;
+            break;
+        }
+    }
+    closedir(dir);
+    return found;
 }
 
 int Server::FindLastGame(char* PLID, char *fname) {
