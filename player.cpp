@@ -294,7 +294,6 @@ void Player::show_trials_cmd() {
 
 void Player::score_board_cmd() {
     FILE *file;
-    int fd;
     ssize_t ret;
     string message = "SSB\n";
     char buffer[2048], Fname[24];

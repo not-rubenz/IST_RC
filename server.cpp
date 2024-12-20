@@ -124,7 +124,7 @@ void Server::receive_request(){
     int udp_fd, tcp_fd, new_fd, n;
     socklen_t addrlen;
     char bufferUDP[128], bufferTCP[4];
-    fd_set ready_set, current_set;
+    fd_set ready_set;
 
     udp_fd = UDPsocket.fd;
     tcp_fd = TCPsocket.fd;
@@ -190,7 +190,6 @@ string Server::handle_request_udp(char* requestBuffer) {
     string args;
     vector<string> request = split_line(requestBuffer);
     int request_size = request.size();
-    char file_name[20];
     string message;
 
     if (request_size < 2) {
@@ -257,7 +256,7 @@ string Server::handle_request_tcp(int fd, char* requestBuffer) {
     char plid[7];
 
     if (!strcmp(requestBuffer, SHOW_TRIAL_REQUEST)) {
-        int n = receiveWordTCP(fd, plid, 7);
+        receiveWordTCP(fd, plid, 7);
         if (!valid_PLID(string(plid))) {
             return handle_error(INVALID_PLID);
         }
@@ -369,7 +368,7 @@ string Server::start_game(vector<string> request) {
             time_str, 
             now);
 
-    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    size_t n = fwrite(buffer, sizeof(char), strlen(buffer), file);
     if (n < strlen(buffer)) {
         fclose(file);
         fprintf(stderr, "Error writing into file.\n");
@@ -421,7 +420,7 @@ string Server::try_colors(vector<string> request) {
             return handle_error(INVALID_TRY_ARG);
     }
     
-    if (current_game.n_tries == atoi(nT.c_str()) & current_game.n_tries != 0) {
+    if ((current_game.n_tries == atoi(nT.c_str())) && (current_game.n_tries != 0)) {
         if (guess.compare(current_game.tries.back())) {
             return handle_error(INVALID_TRIAL);
         } else {
@@ -466,7 +465,7 @@ string Server::try_colors(vector<string> request) {
     }
 
     sprintf(buffer, "T: %s %d %d %d\n", guess.c_str(), nB, nW, time_elapsed);
-    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    size_t n = fwrite(buffer, sizeof(char), strlen(buffer), file);
     if (n < strlen(buffer)) {
         fclose(file);
         fprintf(stderr, "Error writing into file.\n");
@@ -518,7 +517,6 @@ string Server::debug_mode(vector<string> request) {
     FILE *file;
 
     time_t now = time(nullptr);
-    int time_elapsed = (int) difftime(now, games[PLID].start_time);
 
     if (!valid_color(request[3]) || !valid_color(request[4])
         || !valid_color(request[5]) || !valid_color(request[6])) {
@@ -554,7 +552,7 @@ string Server::debug_mode(vector<string> request) {
             time_str, 
             now);
 
-    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    size_t n = fwrite(buffer, sizeof(char), strlen(buffer), file);
     if (n < strlen(buffer)) {
         fclose(file);
         fprintf(stderr, "Error writing into file.\n");
@@ -751,7 +749,7 @@ void Server::end_game(string plid, int status) {
 
     sprintf(buffer, "%s %s %d\n", date, time_str, time_elapsed);
 
-    int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+    size_t n = fwrite(buffer, sizeof(char), strlen(buffer), file);
     if (n < strlen(buffer)) {
         fclose(file);
         fprintf(stderr, "Error writing into file.\n");
@@ -788,7 +786,7 @@ void Server::end_game(string plid, int status) {
             exit(EXIT_FAILURE);
         }
         sprintf(buffer, "%03d %s %s %d %s\n", games[plid].score, plid.c_str(), games[plid].colors.c_str(), games[plid].n_tries, games[plid].mode.c_str());
-        int n = fwrite(buffer, sizeof(char), strlen(buffer), file);
+        size_t n = fwrite(buffer, sizeof(char), strlen(buffer), file);
         if (n < strlen(buffer)) {
             fclose(file);
             fprintf(stderr, "Error writing into file.\n");
@@ -864,7 +862,6 @@ int Server::FindLastGame(char* PLID, char *fname) {
 int Server::FindTopScores(string& message) {
     struct dirent** filelist;
     int n_entries;
-    char dirname[20];
     int n_game = 0;
     int n_file = 0;
     char buffer[128];
