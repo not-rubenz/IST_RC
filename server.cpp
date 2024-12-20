@@ -171,7 +171,6 @@ void Server::receive_request(){
             n = receiveWord(new_fd, bufferTCP, 4);
             string message = handle_request_tcp(new_fd, bufferTCP);
             
-            sendMessage(1, message, strlen(message.c_str()));
             sendMessage(new_fd, message, message.size());
             close(new_fd);
         }
@@ -747,7 +746,6 @@ string Server::show_trials(string plid) {
                 sscanf(buffer, "%s %s %d\n", end_date, end_time, &duration);
             }
         }
-        fclose(file);
 
         termination = file_name[29];
         switch(termination) {
@@ -788,6 +786,7 @@ string Server::show_trials(string plid) {
         sendMessage(1, verbose_msg, verbose_msg.size());
     }
     message += std::to_string(strlen(Fdata.c_str())) + " " + Fdata;
+    fclose(file);
     return message;
 
 }
