@@ -250,38 +250,37 @@ void Player::show_trials_cmd() {
     FILE *file;
     ssize_t ret;
     string message = "STR " + plid + "\n";
-    char buffer[2048], Fname[24];
-    int Fsize;
+    char buffer[2560];
 
     connect_TCP(gsip, gsport);
 
     ret = sendTCP(TCPsocket.fd, message, strlen(message.c_str()));
     if (ret == -1) exit(-1);
 
-    ret = receiveTCP(TCPsocket.fd, buffer, 2048);
+    ret = receiveTCP(TCPsocket.fd, buffer, 2560);
     if (ret == -1) exit(-1);
 
-    string response;
-    char cmd[4], status[4];
-    sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(cmd, "RST")) {
-        if (!strcmp(status, "NOK")) {
+    std::istringstream iss(buffer);
+    string response, cmd, status, Fname, Fsize, Fdata;
+    iss >> cmd >> status;
+    if (!strcmp(cmd.c_str(), "RST")) {
+        if (!strcmp(status.c_str(), "NOK")) {
             response = "No games found.\n";
         } else {
-            sscanf(buffer, "RST %s %s %d", status, Fname, &Fsize);
-            response = string(buffer);
-            response.erase(0, response.find("\n") + 1);
-            if ((file = fopen(Fname, "w")) == NULL) {
+            iss >> Fname >> Fsize;
+            std::getline(iss, Fdata, '\0');
+            if ((file = fopen(Fname.c_str(), "w")) == NULL) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            int n = fwrite(response.c_str(), sizeof(char), Fsize, file);
-            if (n < Fsize) {
+            int n = fwrite(Fdata.c_str(), sizeof(char), atoi(Fsize.c_str()), file);
+            if (n < atoi(Fsize.c_str())) {
                 fclose(file);
                 fprintf(stderr, "Error writing into file.\n");
                 exit(EXIT_FAILURE);
             }
             fclose(file);
+            response = Fdata;
         }
     } else {
         response = "Error: Invalid Input.\n";
@@ -296,38 +295,35 @@ void Player::score_board_cmd() {
     FILE *file;
     ssize_t ret;
     string message = "SSB\n";
-    char buffer[2048], Fname[24];
-    int Fsize;
+    char buffer[2560];
 
     connect_TCP(gsip, gsport);
 
     ret = sendTCP(TCPsocket.fd, message, message.size());
     if (ret == -1) exit(-1);
 
-    ret = receiveTCP(TCPsocket.fd, buffer, 2048);
+    ret = receiveTCP(TCPsocket.fd, buffer, 2560);
     if (ret == -1) exit(-1);
 
-    string response;
-    char cmd[4], status[6];
-    sscanf(buffer, "%s %s", cmd, status);
-    if (!strcmp(cmd, "RSS")) {
-        if (!strcmp(status, "OK")) {
-            sscanf(buffer, "RSS OK %s %d", Fname, &Fsize);
-            
-            response = string(buffer);
-            response.erase(0, response.find("\n") + 1);
-            if ((file = fopen(Fname, "w")) == NULL) {
+    std::istringstream iss(buffer);
+    string response, cmd, status, Fname, Fsize, Fdata;
+    iss >> cmd >> status;
+    if (!strcmp(cmd.c_str(), "RSS")) {
+        if (!strcmp(status.c_str(), "OK")) {
+            iss >> Fname >> Fsize;
+            std::getline(iss, Fdata, '\0');
+            if ((file = fopen(Fname.c_str(), "w")) == NULL) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            int n = fwrite(response.c_str(), sizeof(char), Fsize, file);
-            printf("%ld\n", strlen(response.c_str()));
-            if (n < Fsize) {
+            int n = fwrite(Fdata.c_str(), sizeof(char), atoi(Fsize.c_str()), file);
+            if (n < atoi(Fsize.c_str())) {
                 fclose(file);
                 fprintf(stderr, "Error writing into file.\n");
                 exit(EXIT_FAILURE);
             }
             fclose(file);
+            response = Fdata;
         } else {
             response = "No games found.\n";
         }

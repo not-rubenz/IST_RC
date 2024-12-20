@@ -737,7 +737,7 @@ string Server::show_trials(string plid) {
         return handle_error(NO_GAMES);
     }
     
-    message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata + "\n";
+    message += std::to_string(strlen(Fdata.c_str())) + " " + Fdata;
     fclose(file);
     return message;
 
@@ -754,7 +754,7 @@ string Server::scoreboard() {
         return message;
     }
     Fdata += top_score + "\n\n\n";
-    message = string("RSS OK ") + fname + " " + std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
+    message = string("RSS OK ") + fname + " " + std::to_string(strlen(Fdata.c_str())) + " " + Fdata;
 
     if (verbose) {
         string verbose_msg = "Send scoreboard file \"" +  string(fname) + "\"\n";

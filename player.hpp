@@ -14,6 +14,7 @@
 #include <iostream>
 #include <vector>
 #include <fcntl.h>
+#include <sstream>
 
 using std::string;
 using std::vector;
