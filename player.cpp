@@ -152,7 +152,7 @@ void Player::command_input() {
 
         else {
             string message = "Please enter a valid command.\n";
-            sendMessage(1, message.c_str(), strlen(message.c_str()));
+            sendMessage(1, message, strlen(message.c_str()));
         }
     }
 }
@@ -181,8 +181,6 @@ void Player::start_cmd(string line) {
         printf("Client or server couldn't receive the message, please try again.\n");
         return;
     }
-
-    sendMessage(1, buffer, ret);
     
     string response;
     char cmd[MAX_COMMAND_SIZE], status[MAX_STATUS_SIZE];
@@ -201,7 +199,7 @@ void Player::start_cmd(string line) {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    sendMessage(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response, strlen(response.c_str()));
 
 }
 
@@ -227,8 +225,6 @@ void Player::try_cmd(string line) {
         printf("Client or server couldn't receive the message, please try again.\n");
         return;
     }
-
-    sendMessage(1, buffer, ret);
 
     /* Write response to terminal */
     string response;
@@ -258,7 +254,7 @@ void Player::try_cmd(string line) {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    sendMessage(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response, strlen(response.c_str()));
 
 }
 
@@ -275,10 +271,16 @@ void Player::show_trials_cmd() {
     connect_TCP(gsip, gsport);
 
     ret = sendMessage(TCPsocket.fd, message, strlen(message.c_str()));
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error sending message through TCP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     ret = receiveMessage(TCPsocket.fd, buffer, 2560);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error receiving message through TCP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     std::istringstream iss(buffer);
     string response, cmd, status, Fname, Fsize, Fdata;
@@ -305,7 +307,7 @@ void Player::show_trials_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    sendMessage(1, response.c_str(), atoi(Fsize.c_str()));
+    sendMessage(1, response, atoi(Fsize.c_str()));
     tcp_terminate();
 
 }
@@ -323,10 +325,16 @@ void Player::score_board_cmd() {
     connect_TCP(gsip, gsport);
 
     ret = sendMessage(TCPsocket.fd, message, message.size());
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error sending message through TCP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     ret = receiveMessage(TCPsocket.fd, buffer, 2560);
-    if (ret == -1) exit(-1);
+    if (ret == -1) {
+        fprintf(stderr, "Error receiving message through TCP.\n");
+        exit(EXIT_FAILURE);
+    }
 
     std::istringstream iss(buffer);
     string response, cmd, status, Fname, Fsize, Fdata;
@@ -353,7 +361,7 @@ void Player::score_board_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    sendMessage(1, response.c_str(), atoi(Fsize.c_str()));
+    sendMessage(1, response, atoi(Fsize.c_str()));
     tcp_terminate();
     
 }
@@ -379,8 +387,6 @@ void Player::quit_cmd() {
         return;
     }
 
-    sendMessage(1, buffer, ret);
-
     string response;
     char cmd[MAX_COMMAND_SIZE], status[MAX_STATUS_SIZE], colors[8];
     sscanf(buffer, "%s %s", cmd, status);
@@ -396,7 +402,7 @@ void Player::quit_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    sendMessage(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response, strlen(response.c_str()));
 
 }
 
@@ -408,7 +414,7 @@ void Player::quit_cmd() {
 void Player::exit_cmd() {
     quit_cmd();
     string response = "Exiting game...\n";
-    sendMessage(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response, strlen(response.c_str()));
     player_terminate();
 }
 
@@ -453,7 +459,7 @@ void Player::debug_cmd(string line) {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    sendMessage(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response, strlen(response.c_str()));
 
 }
 
