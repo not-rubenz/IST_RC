@@ -202,7 +202,7 @@ string Server::handle_request_udp(char* requestBuffer) {
     if (!strcmp(command, START_REQUEST)) {
         if (request_size != 3 || !valid_PLID(request[1]) || !valid_time(request[2])) {
             return handle_error(INVALID_START_ARG);
-        } else if (games.count(request[1]) & games[request[1]].on_going) {
+        } else if (games.count(request[1]) && games[request[1]].on_going) {
             time_t now = time(nullptr);
             int time_elapsed = (int) difftime(now, games[request[1]].start_time);
             if (time_elapsed >= games[request[1]].max_playtime) {
@@ -236,7 +236,7 @@ string Server::handle_request_udp(char* requestBuffer) {
         if (request_size != 7 || !valid_PLID(request[1]) || !valid_time(request[2])) {
             return handle_error(INVALID_DEBUG_ARG);
         }
-        else if (!games.count(request[1]) & games[request[1]].on_going) {
+        else if (!games.count(request[1]) && games[request[1]].on_going) {
             time_t now = time(nullptr);
             int time_elapsed = (int) difftime(now, games[request[1]].start_time);
             if (time_elapsed >= games[request[1]].max_playtime) {
@@ -262,7 +262,7 @@ string Server::handle_request_tcp(int fd, char* requestBuffer) {
             return handle_error(INVALID_PLID);
         }
 
-        if (games[plid].on_going) {
+        if (games.count(plid)) {
             time_t now = time(nullptr);
             int time_elapsed = (int) difftime(now, games[plid].start_time);
             if (time_elapsed >= games[plid].max_playtime) {
@@ -797,6 +797,8 @@ void Server::end_game(string plid, int status) {
         fclose(file);
     }
 
+    games.erase(plid);
+
     string new_file_name = "GAMES/" + plid + "/" + string(date_aux) + "_" + string(time_aux) + s_status + ".txt";
 
     if (rename(file_name.c_str(), new_file_name.c_str()) < 0) {
@@ -804,7 +806,6 @@ void Server::end_game(string plid, int status) {
         exit(EXIT_FAILURE);
     }
 
-    games.erase(plid);
 }
 
 void Server::getScore(string plid) {
