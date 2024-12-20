@@ -149,7 +149,6 @@ void Server::receive_request(){
             }
 
             n = receiveWordTCP(new_fd, bufferTCP, 4);
-            write(1, bufferTCP, 3);
             string message = handle_request_tcp(new_fd, bufferTCP);
             write(1, message.c_str(), strlen(message.c_str()));
             sendTCP(new_fd, message, message.size());
@@ -738,7 +737,7 @@ string Server::show_trials(string plid) {
         return handle_error(NO_GAMES);
     }
     
-    message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata;
+    message += std::to_string(strlen(Fdata.c_str())) + "\n" + Fdata + "\n";
     fclose(file);
     return message;
 
