@@ -29,17 +29,12 @@ typedef struct SOCKET {
     struct sockaddr_in addr;
 } SOCKET;
 
-typedef struct GAME {
-    string plid;
-    string mode;
-    string colors;
-    int max_playtime;
-    time_t start_time;
-    int n_tries;
-    vector<string> tries;
-    int score;
-    int on_going;
-} GAME;
+typedef struct TRIAL {
+    string guess;
+    int nB;
+    int nW;
+    int time;
+} TRIAL;
 
 class Server {
     string gsip, gsport;
@@ -47,7 +42,6 @@ class Server {
     int topscore_requests;
     SOCKET UDPsocket;
     SOCKET TCPsocket;
-    std::map<string, GAME> games;
 
     public:
         Server(int argc, char** argv);
@@ -67,10 +61,13 @@ class Server {
         string quit_game(vector<string> request);
         string show_trials(string plid);
         string scoreboard();
-        void getScore(string plid);
+        int getScore(int n_tries);
         void end_game(string plid, int status);
+        vector<TRIAL> GetTrials(FILE *file);
+        int VerifyOngoing(string plid);
+        int TimeoutEnd(string plid);
         int create_dir(const char* dirname);
-        int FindGame(string PLID, const char *fname);
+        int FindGame(string PLID, char *fname);
         int FindLastGame(char *PLID, char *fname);
         int FindTopScores(string& message);
 };
