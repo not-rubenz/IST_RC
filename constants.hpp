@@ -5,9 +5,17 @@
 #define GSIP_DEFAULT "127.0.0.1"
 #define GSPORT_DEFAULT "58036"
 
-#define MAX_LINE_SIZE 128
+#define MAX_UDPBUFFER_SIZE 128
+#define MAX_TCPBUFFER_SIZE 2560
 #define MAX_PLAYTIME 600
 #define MAX_COMMAND_SIZE 4
+#define MAX_STATUS_SIZE 4
+#define MAX_PLID_SIZE 7
+#define MAX_COLOR_SIZE 5
+#define MAX_BUFFER_SIZE 128
+#define MAX_DATE_SIZE 11
+#define MAX_TIME_SIZE 9
+#define MAX_SCORE_SIZE 4
 #define TIMEOUT_SEC 5
 
 ///////////////////////////////////////////////////

@@ -13,26 +13,22 @@ Player::Player(int argc, char** argv) {
     command_input();
 }
 
-
-
 void Player::connection_input(int argc, char** argv) {
-    char opt;
-    extern char* optarg;
 
-    while((opt = getopt(argc, argv, "n:p:")) != -1) {
-        switch(opt) {
-            case 'n':
-                gsip = optarg;
-                break;
-            case 'p':
-                gsport = optarg;
-                break;
-            default:
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "-p") && i + 1 < argc) {
+            gsport = string(argv[++i]);
+            if (!isPort(gsport)) {
                 fprintf(stderr, "Usage: %s [-n GSIP] [-p GSport]\n", argv[0]);
                 exit(EXIT_FAILURE);
+            }
+        } else if (!strcmp(argv[i], "-n") && i + 1 < argc) {
+            gsip = string(argv[++i]);
+        } else {
+            fprintf(stderr, "Usage: %s [-n GSIP] [-p GSport]\n", argv[0]);
+            exit(EXIT_FAILURE);
         }
     }
-
     if (gsip.empty()) {
         gsip = GSIP_DEFAULT;
     }
@@ -43,9 +39,12 @@ void Player::connection_input(int argc, char** argv) {
         fprintf(stderr, "Usage: %s [-n GSIP] [-p GSport]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
+
 }
 
-
+/**
+ * Inicializa o Socket UDP.
+ */
 void Player::connect_UDP(string ip, string port) {
     int fd,errcode;
     struct addrinfo hints, *res;
@@ -69,8 +68,17 @@ void Player::connect_UDP(string ip, string port) {
     // save the socket
     UDPsocket.fd = fd;
     UDPsocket.res = res;
+
+    // timeout for socket
+    struct timeval timeout;
+    timeout.tv_sec = TIMEOUT_SEC;
+    timeout.tv_usec = 0;
+    setsockopt(UDPsocket.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 }
 
+/**
+ * Inicializa o socket TCP
+ */
 void Player::connect_TCP(string ip, string port) {
     int fd,errcode;
     ssize_t n;
@@ -100,6 +108,9 @@ void Player::connect_TCP(string ip, string port) {
     TCPsocket.res = res;
 }
 
+/**
+ * Funcao em loop que le o input tratando dos comandos
+ */
 void Player::command_input() {
 
     while(1) {
@@ -141,23 +152,23 @@ void Player::command_input() {
 
         else {
             string message = "Please enter a valid command.\n";
-            write(1, message.c_str(), strlen(message.c_str()));
+            sendMessage(1, message.c_str(), strlen(message.c_str()));
         }
     }
 }
 
-
+/**
+ * Funcao que verifica e envia o comando Start ao servidor
+ * Informa o utilizador do estado do jogo.
+ * 
+ * @param line comando
+ */
 void Player::start_cmd(string line) {
     ssize_t ret;
     string message = "SNG" +  line + '\n';
-    char buffer[128];
+    char buffer[MAX_UDPBUFFER_SIZE];
 
     vector<string> input = split_line(line);
-
-    struct timeval timeout;
-    timeout.tv_sec = TIMEOUT_SEC;
-    timeout.tv_usec = 0;
-    setsockopt(UDPsocket.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) {
@@ -171,10 +182,10 @@ void Player::start_cmd(string line) {
         return;
     }
 
-    write(1, buffer, ret);
+    sendMessage(1, buffer, ret);
     
     string response;
-    char cmd[4], status[4];
+    char cmd[MAX_COMMAND_SIZE], status[MAX_STATUS_SIZE];
     sscanf(buffer, "%s %s", cmd, status);
     if (!strcmp(cmd, "RSG")) {
         if (!strcmp(status, "OK")) {
@@ -190,15 +201,20 @@ void Player::start_cmd(string line) {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), strlen(response.c_str()));
 
 }
 
-
+/**
+ * Funcao que verifica e envia o comando Try ao servidor
+ * Informa o utilizador do estado do jogo.
+ * 
+ * @param line comando
+ */
 void Player::try_cmd(string line) {
     ssize_t ret;
     string message = "TRY " + plid + line + ' ' + std::to_string(n_tries) +'\n';
-    char buffer[128];
+    char buffer[MAX_UDPBUFFER_SIZE];
     
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) {
@@ -212,12 +228,12 @@ void Player::try_cmd(string line) {
         return;
     }
 
-    write(1, buffer, ret);
+    sendMessage(1, buffer, ret);
 
     /* Write response to terminal */
     string response;
     int nB, nW;
-    char cmd[4], status[4], colors[8];
+    char cmd[MAX_COMMAND_SIZE], status[MAX_STATUS_SIZE], colors[8];
     sscanf(buffer, "%s %s", cmd, status);
     if (!strcmp(cmd, "RTR")) {
         if (!strcmp(status, "OK")) {
@@ -242,22 +258,26 @@ void Player::try_cmd(string line) {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), strlen(response.c_str()));
 
 }
 
+/**
+ * Funcao que verifica e envia o comando Show trials ao servidor
+ * Informa o utilizador das jogadas realizadas
+ */
 void Player::show_trials_cmd() {
     FILE *file;
     ssize_t ret;
     string message = "STR " + plid + "\n";
-    char buffer[2560];
+    char buffer[MAX_TCPBUFFER_SIZE];
 
     connect_TCP(gsip, gsport);
 
-    ret = sendTCP(TCPsocket.fd, message, strlen(message.c_str()));
+    ret = sendMessage(TCPsocket.fd, message, strlen(message.c_str()));
     if (ret == -1) exit(-1);
 
-    ret = receiveTCP(TCPsocket.fd, buffer, 2560);
+    ret = receiveMessage(TCPsocket.fd, buffer, 2560);
     if (ret == -1) exit(-1);
 
     std::istringstream iss(buffer);
@@ -285,24 +305,27 @@ void Player::show_trials_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), atoi(Fsize.c_str()));
     tcp_terminate();
 
 }
 
-
+/**
+ * Funcao que verifica e envia o comando Show trials ao servidor
+ * Informa o utilizador dos 10 jogadores com a maior pontuacao.
+ */
 void Player::score_board_cmd() {
     FILE *file;
     ssize_t ret;
     string message = "SSB\n";
-    char buffer[2560];
+    char buffer[MAX_TCPBUFFER_SIZE];
 
     connect_TCP(gsip, gsport);
 
-    ret = sendTCP(TCPsocket.fd, message, message.size());
+    ret = sendMessage(TCPsocket.fd, message, message.size());
     if (ret == -1) exit(-1);
 
-    ret = receiveTCP(TCPsocket.fd, buffer, 2560);
+    ret = receiveMessage(TCPsocket.fd, buffer, 2560);
     if (ret == -1) exit(-1);
 
     std::istringstream iss(buffer);
@@ -330,15 +353,19 @@ void Player::score_board_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), atoi(Fsize.c_str()));
     tcp_terminate();
     
 }
 
+/**
+ * Funcao que verifica e envia o comando Quit ao servidor
+ * Informa o utilizador do estado do jogo.
+ */
 void Player::quit_cmd() {
     ssize_t ret;
     string message = "QUT " + plid + '\n';
-    char buffer[128];
+    char buffer[MAX_UDPBUFFER_SIZE];
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) {
@@ -352,10 +379,10 @@ void Player::quit_cmd() {
         return;
     }
 
-    write(1, buffer, ret);
+    sendMessage(1, buffer, ret);
 
     string response;
-    char cmd[4], status[4], colors[8];
+    char cmd[MAX_COMMAND_SIZE], status[MAX_STATUS_SIZE], colors[8];
     sscanf(buffer, "%s %s", cmd, status);
     if (!strcmp(cmd, "RQT")) {
         if (!strcmp(status, "OK")) {
@@ -369,21 +396,32 @@ void Player::quit_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), strlen(response.c_str()));
 
 }
 
+/**
+ * Funcao que verifica e envia o comando Quit ao servidor
+ * Informa o utilizador do estado do jogo.
+ * Termina o programa
+ */
 void Player::exit_cmd() {
     quit_cmd();
     string response = "Exiting game...\n";
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), strlen(response.c_str()));
     player_terminate();
 }
 
+/**
+ * Funcao que verifica e envia o comando Debug ao servidor
+ * Informa o utilizador do estado do jogo.
+ * 
+ * @param line comando
+ */
 void Player::debug_cmd(string line) {
     ssize_t ret;
     string message = "DBG" + line + '\n';
-    char buffer[128];
+    char buffer[MAX_UDPBUFFER_SIZE];
     vector<string> input = split_line(line);
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
@@ -399,7 +437,7 @@ void Player::debug_cmd(string line) {
     }
 
     string response;
-    char cmd[4], status[4];
+    char cmd[MAX_COMMAND_SIZE], status[MAX_STATUS_SIZE];
     sscanf(buffer, "%s %s", cmd, status);
     if (!strcmp(cmd, "RDB")) {
         if (!strcmp(status, "OK")) {
@@ -415,15 +453,21 @@ void Player::debug_cmd(string line) {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), strlen(response.c_str()));
+    sendMessage(1, response.c_str(), strlen(response.c_str()));
 
 }
 
+/**
+ * Fecha o Socket TCP
+ */
 void Player::tcp_terminate() {
     freeaddrinfo(TCPsocket.res);
     close(TCPsocket.fd);
 }
 
+/**
+ * Fecha o Socket UDP
+ */
 void Player::player_terminate() {
     freeaddrinfo(UDPsocket.res);
     close(UDPsocket.fd);

@@ -2,7 +2,9 @@
 #include "constants.hpp"
 #include "utils.hpp"
 
-
+/**
+ * Inicializa servidor
+ */
 Server::Server(int argc, char** argv) {
     verbose = 0;
     topscore_requests = 0;
@@ -12,30 +14,37 @@ Server::Server(int argc, char** argv) {
     receive_request();
 }
 
-
+/**
+ * Estabeleve a conecao do servidor.
+ */
 void Server::connection_input(int argc, char** argv) {
-    char opt;
-    extern char* optarg;
 
-    while((opt = getopt(argc, argv, "p:v:")) != -1) {
-        switch(opt) {
-            case 'p':
-                gsport = optarg;
-                break;
-            case 'v':
-                verbose = 1;
-                break;
-            default:
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "-p") && i + 1 < argc) {
+            gsport = string(argv[++i]);
+            if (!isPort(gsport)) {
                 fprintf(stderr, "Usage: %s [-p GSport] [-v]\n", argv[0]);
                 exit(EXIT_FAILURE);
+            }
+        } else if (!strcmp(argv[i], "-v")) {
+            verbose = 1;
+        } else {
+            fprintf(stderr, "Usage: %s [-p GSport] [-v]\n", argv[0]);
+            exit(EXIT_FAILURE);
         }
     }
-
     if (gsport.empty()) {
         gsport = GSPORT_DEFAULT;
     }
+    if (argc > 4) {
+        fprintf(stderr, "Usage: %s [-n GSIP] [-p GSport]\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
 }
 
+/**
+ * Inicializa o Socket UDP.
+ */
 void Server::setup_UDP(string port) {
 
     int fd;
@@ -68,6 +77,9 @@ void Server::setup_UDP(string port) {
 
 }
 
+/**
+ * Inicializa o socket TCP
+ */
 void Server::setup_TCP(string port) {
     
     int fd;
@@ -105,6 +117,10 @@ void Server::setup_TCP(string port) {
 
 }
 
+/**
+ * Inicializa os sockets UDP e TCP.
+ * Cria as diretorias GAMES/ e SCORES/
+ */
 void Server::setup_server(string gsport) {
 
     setup_UDP(gsport);
@@ -119,11 +135,15 @@ void Server::setup_server(string gsport) {
     }
 }
 
+/**
+ * Funcao que corre em loop recebendo e enviando mensagens por TCP e UDP.
+ * Trata dos requests recebidos.
+ */
 void Server::receive_request(){
 
     int udp_fd, tcp_fd, new_fd, n;
     socklen_t addrlen;
-    char bufferUDP[128], bufferTCP[4];
+    char bufferUDP[MAX_UDPBUFFER_SIZE], bufferTCP[MAX_COMMAND_SIZE];
     fd_set ready_set;
 
     udp_fd = UDPsocket.fd;
@@ -142,32 +162,30 @@ void Server::receive_request(){
         }
 
         if (FD_ISSET(tcp_fd, &ready_set)) {
-            addrlen = sizeof(TCPsocket.addr);
-            if ((new_fd = accept(tcp_fd, (struct sockaddr*)&TCPsocket.addr, &addrlen)) == -1) {
+            addrlen = sizeof(TCPsocket.client_addr);
+            if ((new_fd = accept(tcp_fd, (struct sockaddr*)&TCPsocket.client_addr, &addrlen)) == -1) {
                 fprintf(stderr, "Unable to accept.\n");
                 exit(EXIT_FAILURE);
             }
 
-            n = receiveWordTCP(new_fd, bufferTCP, 4);
+            n = receiveWord(new_fd, bufferTCP, 4);
             string message = handle_request_tcp(new_fd, bufferTCP);
-            write(1, message.c_str(), strlen(message.c_str()));
-            sendTCP(new_fd, message, message.size());
+            sendMessage(new_fd, message, message.size());
             close(new_fd);
         }
 
         if (FD_ISSET(udp_fd, &ready_set)) {
-            addrlen = sizeof(UDPsocket.addr);
-            bzero(bufferUDP, 128);
+            addrlen = sizeof(UDPsocket.client_addr);
+            bzero(bufferUDP, MAX_UDPBUFFER_SIZE);
 
-            if ((n = recvfrom(udp_fd, bufferUDP, 128, 0, (struct sockaddr*)&UDPsocket.addr, &addrlen)) < 0) {
+            if ((n = recvfrom(udp_fd, bufferUDP, MAX_UDPBUFFER_SIZE, 0, (struct sockaddr*)&UDPsocket.client_addr, &addrlen)) < 0) {
                 fprintf(stderr, "Unable to receive message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
 
-            write(1, bufferUDP, strlen(bufferUDP));
             string message = handle_request_udp(bufferUDP);
 
-            if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.addr, addrlen) < 0) {
+            if (sendto(udp_fd, message.c_str(), strlen(message.c_str()), 0, (struct sockaddr*)&UDPsocket.client_addr, addrlen) < 0) {
                 fprintf(stderr, "Unable to send message through UDP.\n");
                 exit(EXIT_FAILURE);
             }
@@ -175,6 +193,12 @@ void Server::receive_request(){
     }
 }
 
+/**
+ * Funcao que comeca um jogo.
+ * 
+ * @param dirname nome da diretoria
+ * @return Sucesso ou falha.
+ */
 int Server::create_dir(const char* dirname) {
     if (mkdir(dirname, 0700) == -1){
         if (errno == EEXIST) {
@@ -186,6 +210,12 @@ int Server::create_dir(const char* dirname) {
     return 1;
 }
 
+/**
+ * Funcao que verifica e executa comandos pedidos enviados por UDP.
+ * 
+ * @param requestBuffer pedido recebido
+ * @return mensagem a ser enviado para o cliente
+ */
 string Server::handle_request_udp(char* requestBuffer) {
     string args;
     vector<string> request = split_line(requestBuffer);
@@ -233,11 +263,17 @@ string Server::handle_request_udp(char* requestBuffer) {
 
 }
 
+/**
+ * Funcao que verifica e executa comandos pedidos enviados por TCP.
+ * 
+ * @param requestBuffer pedido recebido
+ * @return mensagem a ser enviado para o cliente
+ */
 string Server::handle_request_tcp(int fd, char* requestBuffer) {
-    char plid[7];
+    char plid[MAX_PLID_SIZE];
 
     if (!strcmp(requestBuffer, SHOW_TRIAL_REQUEST)) {
-        receiveWordTCP(fd, plid, 7);
+        receiveWord(fd, plid, 7);
         if (!valid_PLID(string(plid))) {
             return handle_error(INVALID_PLID);
         }
@@ -252,6 +288,12 @@ string Server::handle_request_tcp(int fd, char* requestBuffer) {
 
 }
 
+/**
+ * Funcao que recebe um errcode e devolve uma mensagem de erro.
+ * 
+ * @param errcode codigo de erro
+ * @return mensagem a ser enviado para o cliente
+ */
 string Server::handle_error(int errcode) {
     string message;
     switch (errcode) {
@@ -299,13 +341,19 @@ string Server::handle_error(int errcode) {
     return NULL;
 }
 
+/**
+ * Funcao que começa um jogo.
+ * 
+ * @param request o pedido dividido por palavras
+ * @return mensagem a ser enviado para o cliente.
+ */
 string Server::start_game(vector<string> request) {
     string PLID = request[1];
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
     FILE *file;
-    char buffer[128];
+    char buffer[MAX_BUFFER_SIZE];
 
     if (FindGame(PLID, NULL)) {
         time_t start_time, now = time(nullptr);
@@ -371,23 +419,23 @@ string Server::start_game(vector<string> request) {
     }
     fclose(file);
 
-    // new_game.mode = mode;
-    // new_game.colors = string(code);
-    // new_game.max_playtime = atoi(max_playtime.c_str());
-    // new_game.start_time = now;
-    // new_game.n_tries = 0;
-    // new_game.score = 0;
-    // new_game.on_going = 0;
-    // games[PLID] = new_game;
-
     string message = "RSG OK\n";
     if (verbose) {
-        string verbose_msg = "PLID=" + PLID + ": new game (max " + max_playtime + " sec); Colors: " + code + "\n";
-        sendTCP(1, verbose_msg, verbose_msg.size());
+       string client_ip = string(inet_ntoa(UDPsocket.client_addr.sin_addr));
+        string client_port = std::to_string(ntohs(UDPsocket.client_addr.sin_port));
+        string verbose_msg = "IP: " + client_ip + "\nport: " + client_port + "\nPLID: " + PLID + 
+                             "\nRequest: Start (max_playtime=" + max_playtime + ")\n\n";
+        sendMessage(1, verbose_msg, verbose_msg.size());
     }
     return message;
 }
 
+/**
+ * Funcao que faz uma tentativa para advinhar a solucao.
+ * 
+ * @param request o pedido dividido por palavras
+ * @return mensagem a ser enviado para o cliente.
+ */
 string Server::try_colors(vector<string> request) {
     string PLID = request[1];
     string C1 = request[2];
@@ -396,10 +444,10 @@ string Server::try_colors(vector<string> request) {
     string C4 = request[5];
     string nT = request[6];
     string file_name = "GAMES/GAME_" + PLID + ".txt";
-    char buffer[128];
+    char buffer[MAX_BUFFER_SIZE];
     FILE *file;
     string guess = C1 + C2 + C3 + C4;
-    char target[5];
+    char target[MAX_COLOR_SIZE];
     int max_playtime, n_tries;
     time_t start_time;
 
@@ -408,7 +456,7 @@ string Server::try_colors(vector<string> request) {
         exit(EXIT_FAILURE);
     }    
 
-    fgets(buffer, 128, file);
+    fgets(buffer, MAX_BUFFER_SIZE, file);
     sscanf(buffer, "%*s %*s %s %d %*s %*s %ld\n", target, &max_playtime, &start_time);
 
     time_t now = time(nullptr);
@@ -480,25 +528,18 @@ string Server::try_colors(vector<string> request) {
     }
     fclose(file);
 
-    // games[PLID].n_tries++;
-    // games[PLID].tries.push_back(guess);
-
-    // if (games[PLID].on_going == 0) {
-    //     games[PLID].on_going = 1;
-    // }
+    string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + "\n";
+    if (verbose) {
+        string client_ip = string(inet_ntoa(UDPsocket.client_addr.sin_addr));
+        string client_port = std::to_string(ntohs(UDPsocket.client_addr.sin_port));
+        string verbose_msg = "IP: " + client_ip + "\nport: " + client_port + "\nPLID: " + PLID + "\nRequest: Try " +
+                             guess[0] + " " + guess[1] + " " + guess[2] + " " + guess[3] + ", nB = " +
+                             std::to_string(nB) + ", nW = " + std::to_string(nW) + ", nT = " + nT + "\n\n";
+        sendMessage(1, verbose_msg, verbose_msg.size());
+    }
 
     if (nB == 4) {
-        if (verbose) {
-            string verbose_msg = "PLID=" + PLID + ": try " + target + " - " + "nB = " + std::to_string(nB) + ", nW = " + std::to_string(nW) + " WIN (game ended)\n";
-            sendTCP(1, verbose_msg, verbose_msg.size());
-        }
         end_game(PLID, GAME_WIN);
-    }
-    else {
-        if (verbose) {
-            string verbose_msg = "PLID=" + PLID + ": try " + target + " - " + "nB = " + std::to_string(nB) + ", nW = " + std::to_string(nW) + " not guessed\n";
-            sendTCP(1, verbose_msg, verbose_msg.size());
-        }
     }
 
     if (n_tries == MAX_TRIALS - 1) {
@@ -509,17 +550,21 @@ string Server::try_colors(vector<string> request) {
         }
     }
 
-    string message = "RTR OK " + nT + " " + std::to_string(nB) + " " + std::to_string(nW) + "\n";
-
     return message;
 }
 
+/**
+ * Funcao que começa um jogo em modo debug.
+ * 
+ * @param request o pedido dividido por palavras
+ * @return mensagem a ser enviado para o cliente.
+ */
 string Server::debug_mode(vector<string> request) {
     string PLID = request[1];
     string max_playtime = request[2];
     string player_dir = "GAMES/" + PLID;
     string file_name = "GAMES/GAME_" + PLID + ".txt";
-    char buffer[128];
+    char buffer[MAX_BUFFER_SIZE];
     FILE *file;
 
     if (FindGame(PLID, NULL)) {
@@ -529,7 +574,7 @@ string Server::debug_mode(vector<string> request) {
             fprintf(stderr, "Error opening file.\n");
             exit(EXIT_FAILURE);
         }
-        fgets(buffer, 128, file);
+        fgets(buffer, MAX_BUFFER_SIZE, file);
         sscanf(buffer, "%*s %*s %*s %d %*s %*s %ld\n", &max_playtime, &start_time);
 
         int time_elapsed = (int) difftime(now, start_time);
@@ -560,7 +605,7 @@ string Server::debug_mode(vector<string> request) {
     create_dir(player_dir.c_str());
 
     string mode = "DEBUG";
-    char code[5];
+    char code[MAX_COLOR_SIZE];
     code[0] = request[3][0];
     code[1] = request[4][0];
     code[2] = request[5][0];
@@ -568,7 +613,7 @@ string Server::debug_mode(vector<string> request) {
     code[4] = '\0';
 
     struct tm *local_time = localtime(&now);
-    char date[11], time_str[9];
+    char date[MAX_DATE_SIZE], time_str[MAX_TIME_SIZE];
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);   
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time); 
 
@@ -589,26 +634,30 @@ string Server::debug_mode(vector<string> request) {
     }
     fclose(file);
 
-    // new_game.mode = mode;
-    // new_game.colors = string(code);
-    // new_game.max_playtime = atoi(max_playtime.c_str());
-    // new_game.start_time = now;
-    // new_game.n_tries = 0;
-    // new_game.score = 0;
-    // new_game.on_going = 0;
-    // games[PLID] = new_game;
-
     string message = "RDB OK\n";
+    if (verbose) {
+        string client_ip = string(inet_ntoa(UDPsocket.client_addr.sin_addr));
+        string client_port = std::to_string(ntohs(UDPsocket.client_addr.sin_port));
+        string verbose_msg = "IP: " + client_ip + "\nport: " + client_port + "\nPLID: " + PLID + 
+                             "\nRequest: Start (max_playtime=" + max_playtime + ", solution=" + string(code) + ")\n\n";
+        sendMessage(1, verbose_msg, verbose_msg.size());
+    }
     return message;
 }
 
-
+/**
+ * Funcao que produz uma mensagem com as jogadas de um certo jogador.
+ * 
+ * @param plid player id
+ * @return mensagem a ser enviado para o cliente
+ */
 string Server::show_trials(string plid) {
     string message;
     string Fdata;
     string trials = "";
     FILE *file;
-    char file_name[64], buffer[128], guess[5], Fdata_aux[128], date[11], time_str[9];
+    char file_name[64], buffer[MAX_BUFFER_SIZE], guess[MAX_COLOR_SIZE],
+        Fdata_aux[MAX_BUFFER_SIZE], date[MAX_DATE_SIZE], time_str[MAX_TIME_SIZE];
     int max_playtime, nB, nW, time_elapsed, n_trials, time_left;
     time_t start_time;
     n_trials = 0;
@@ -621,7 +670,7 @@ string Server::show_trials(string plid) {
             fprintf(stderr, "Error opening file.\n");
             exit(EXIT_FAILURE);
         }
-        fgets(buffer, 128, file);
+        fgets(buffer, MAX_BUFFER_SIZE, file);
         sscanf(buffer, "%*s %*s %*s %d %*s %*s %ld\n", &max_playtime, &start_time);
         fclose(file);
 
@@ -639,13 +688,13 @@ string Server::show_trials(string plid) {
         message = "RST ACT STATE_" + plid + ".txt ";
         Fdata = "     Active game found for player " + plid + "\n";
 
-        fgets(buffer, 128, file);
+        fgets(buffer, MAX_BUFFER_SIZE, file);
         sscanf(buffer, "%*s %*s %*s %d %s %s %ld\n", &max_playtime, date, time_str, &start_time);
         sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n\n", 
                     date, time_str, max_playtime);
         Fdata += string(Fdata_aux);
 
-        while (fgets(buffer, 128, file)) {
+        while (fgets(buffer, MAX_BUFFER_SIZE, file)) {
             if (buffer[0] == 'T') {
                 sscanf(buffer, "T: %s %d %d %d\n", guess, &nB, &nW, &time_elapsed);
                 sprintf(Fdata_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
@@ -662,16 +711,11 @@ string Server::show_trials(string plid) {
         } else {
             Fdata += "     --- Transactions found: " + std::to_string(n_trials) + " ---\n\n" + trials +  "\n  -- " + std::to_string(time_left) +  " seconds remaining to be completed --\n\n";
         }
-        
-        if (verbose) {
-            string verbose_msg = "PLID=" + plid + ": show trials: \"" + file_n + "\"\n";
-            sendTCP(1, verbose_msg, verbose_msg.size());
-        }
 
     } else if (FindLastGame((char *) plid.data(), file_name)) {
 
         char termination, mode;
-        char target[5], end_date[11], end_time[9];
+        char target[MAX_COLOR_SIZE], end_date[MAX_DATE_SIZE], end_time[MAX_TIME_SIZE];
         string termination_str;
         int duration;
         
@@ -681,7 +725,7 @@ string Server::show_trials(string plid) {
         }
         message = "RST FIN STATE_" + plid + ".txt ";
         Fdata = "     Last finalized game for player " + plid + "\n";
-        fgets(buffer, 128, file);
+        fgets(buffer, MAX_BUFFER_SIZE, file);
         sscanf(buffer, "%*s %c %s %d %s %s %ld\n", &mode, target, &max_playtime, date, time_str, &start_time);
         sprintf(Fdata_aux, "Game initiated: %s %s with %d seconds to be completed\n", 
                     date, time_str, max_playtime);
@@ -691,7 +735,7 @@ string Server::show_trials(string plid) {
             Fdata += string(Fdata_aux) + "Mode: DEBUG Secret code: " + string(target) + "\n\n";
         }
 
-        while (fgets(buffer, 128, file)) {
+        while (fgets(buffer, MAX_BUFFER_SIZE, file)) {
             if (buffer[0] == 'T') {
                 sscanf(buffer, "T: %s %d %d %d\n", guess, &nB, &nW, &time_elapsed);
                 sprintf(Fdata_aux, "Trial: %s, nB: %d, nW: %d at %3ds\n", guess, nB, nW, time_elapsed);
@@ -701,6 +745,8 @@ string Server::show_trials(string plid) {
                 sscanf(buffer, "%s %s %d\n", end_date, end_time, &duration);
             }
         }
+        fclose(file);
+
         termination = file_name[29];
         switch(termination) {
             case 'W':
@@ -728,21 +774,27 @@ string Server::show_trials(string plid) {
         Fdata += "     Termination: " + termination_str + " at " + string(end_date) + " " + string(end_time) +
                  ", Duration: " + std::to_string(duration) + "s\n\n";
 
-        if (verbose) {
-            string verbose_msg = "PLID=" + plid + ": show trials: \"" + string(file_name) + "\"\n";
-            sendTCP(1, verbose_msg, verbose_msg.size());
-        }
-
     } else {
         return handle_error(NO_GAMES);
     }
     
+    if (verbose) {
+        string client_ip = string(inet_ntoa(TCPsocket.client_addr.sin_addr));
+        string client_port = std::to_string(ntohs(TCPsocket.client_addr.sin_port));
+        string verbose_msg = "IP: " + client_ip + "\nport: " + client_port + "\nPLID: " + plid + 
+                             "\nRequest: Show_trials\n\n";
+        sendMessage(1, verbose_msg, verbose_msg.size());
+    }
     message += std::to_string(strlen(Fdata.c_str())) + " " + Fdata;
-    fclose(file);
     return message;
 
 }
 
+/**
+ * Funcao que mostra os 10 jogadores com maior pontuacao.
+ * 
+ * @return mensagem a ser enviado para o cliente
+ */
 string Server::scoreboard() {
     string message;
     string top_score = "";
@@ -757,8 +809,10 @@ string Server::scoreboard() {
     message = string("RSS OK ") + fname + " " + std::to_string(strlen(Fdata.c_str())) + " " + Fdata;
 
     if (verbose) {
-        string verbose_msg = "Send scoreboard file \"" +  string(fname) + "\"\n";
-        sendTCP(1, verbose_msg, verbose_msg.size());
+        string client_ip = string(inet_ntoa(TCPsocket.client_addr.sin_addr));
+        string client_port = std::to_string(ntohs(TCPsocket.client_addr.sin_port));
+        string verbose_msg = "IP: " + client_ip + "\nport: " + client_port + "\nRequest: Scoreboard\n\n";
+        sendMessage(1, verbose_msg, verbose_msg.size());
     }
 
     if (++topscore_requests == 10000000) {
@@ -767,12 +821,17 @@ string Server::scoreboard() {
     return message;
 }
 
-
+/**
+ * Funcao que termina um jogo.
+ * 
+ * @param request o pedido dividido por palavras
+ * @return mensagem a ser enviado para o cliente.
+ */
 string Server::quit_game(vector<string> request) {
     FILE *file;
     string PLID = request[1];
     string file_name = "GAMES/GAME_" + PLID + ".txt";
-    char buffer[128], target[5];
+    char buffer[MAX_BUFFER_SIZE], target[MAX_COLOR_SIZE];
 
     if (FindGame(PLID, NULL)) {
         time_t start_time, now = time(nullptr);
@@ -781,7 +840,7 @@ string Server::quit_game(vector<string> request) {
             fprintf(stderr, "Error opening file.\n");
             exit(EXIT_FAILURE);
         }
-        fgets(buffer, 128, file);
+        fgets(buffer, MAX_BUFFER_SIZE, file);
         sscanf(buffer, "%*s %*s %*s %d %*s %*s %ld\n", &max_playtime, &start_time);
         fclose(file);
 
@@ -799,21 +858,34 @@ string Server::quit_game(vector<string> request) {
         exit(EXIT_FAILURE);
     }
 
-    fgets(buffer, 128, file);
+    fgets(buffer, MAX_BUFFER_SIZE, file);
     sscanf(buffer, "%*s %*s %s", target);
     fclose(file);
 
     end_game(PLID, GAME_QUIT);
 
+    if (verbose) {
+        string client_ip = string(inet_ntoa(UDPsocket.client_addr.sin_addr));
+        string client_port = std::to_string(ntohs(UDPsocket.client_addr.sin_port));
+        string verbose_msg = "IP: " + client_ip + "\nport: " + client_port + "\nPLID: " + PLID + "\nRequest: Quit\n\n";
+        sendMessage(1, verbose_msg, verbose_msg.size());
+    }
     string message = "RQT OK " + std::string(1, target[0]) + " " + std::string(1, target[1]) + " " + std::string(1, target[2]) + " " + std::string(1,target[3]) + "\n";
     return message;
 }
 
+/**
+ * Funcao que termina um jogo em curso, atualizando o seu estado localmente.
+ * 
+ * @param plid player id
+ * @param status modo como terminou o jogo
+ * @return mensagem a ser enviado para o cliente.
+ */
 void Server::end_game(string plid, int status) {
     FILE *file;
     int max_playtime, score = 0;
     time_t start_time;
-    char buffer[128], target[5], mode;
+    char buffer[MAX_BUFFER_SIZE], target[MAX_COLOR_SIZE], mode;
     string s_status;
     string score_file_name;
     string file_name = "GAMES/GAME_" + plid + ".txt";
@@ -821,14 +893,14 @@ void Server::end_game(string plid, int status) {
         fprintf(stderr, "Error opening file.\n");
         exit(EXIT_FAILURE);
     }
-    fgets(buffer, 128, file);
+    fgets(buffer, MAX_BUFFER_SIZE, file);
     sscanf(buffer, "%*s %c %s %d %*s %*s %ld\n", &mode, target, &max_playtime, &start_time);
     vector<TRIAL> trials = GetTrials(file);
     int n_tries = trials.size();
 
     time_t now = time(nullptr);
     struct tm *local_time = localtime(&now);
-    char date[11], time_str[9];
+    char date[MAX_DATE_SIZE], time_str[MAX_TIME_SIZE];
     int time_elapsed = std::min((int) difftime(now, start_time), max_playtime);
     strftime(date, sizeof(date), "%Y-%m-%d", local_time);
     strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time);
@@ -872,7 +944,7 @@ void Server::end_game(string plid, int status) {
     }
 
     if (status == GAME_WIN) {
-        char score_aux[4];
+        char score_aux[MAX_SCORE_SIZE];
         sprintf(score_aux, "%03d", score);
         score_file_name = "SCORES/" + string(score_aux) + "_" + plid + "_" + string(date_aux) + "_" + string(time_aux) + ".txt";
         if ((file = fopen(score_file_name.c_str(), "w")) == NULL) {
@@ -898,15 +970,27 @@ void Server::end_game(string plid, int status) {
 
 }
 
+/**
+ * Funcao que calcula a pontuacao de um jogo terminado com sucesso.
+ * 
+ * @param n_tries número de tentativas
+ * @return pontuacao do jogo
+ */
 int Server::getScore(int n_tries) {
 
     return (MAX_TRIALS - (n_tries - 1)) * 100 / MAX_TRIALS;
 
 }
 
+/**
+ * Funcao que retorna as jogadas de um ficheiro.
+ * 
+ * @param file ficheiro
+ * @return vetor com as jogadas realizadas
+ */
 vector<TRIAL> Server::GetTrials(FILE *file) {
     int nB, nW, time;
-    char buffer[128], guess[5];
+    char buffer[MAX_BUFFER_SIZE], guess[MAX_COLOR_SIZE];
     vector<TRIAL> trials;
     bzero(buffer, sizeof(buffer));
     while (fgets(buffer, sizeof(buffer), file)) {
@@ -924,10 +1008,16 @@ vector<TRIAL> Server::GetTrials(FILE *file) {
     return trials;
 }
 
+/**
+ * Funcao que verifica se o jogador tem algum jogo em curso.
+ * 
+ * @param plid player id
+ * @return Existe ou nao jogo em curso
+ */
 int Server::VerifyOngoing(string plid) {
 
     int line_count = 0;
-    char buffer[128], fname[24];
+    char buffer[MAX_BUFFER_SIZE], fname[24];
     string file_name;
     FILE* file;
     bzero(fname, sizeof(fname));
@@ -955,7 +1045,13 @@ int Server::VerifyOngoing(string plid) {
 
 }
 
-// Find GAME_(PLID).txt
+/**
+ * Funcao que verifica se o jogador tem um jogo comecado.
+ * 
+ * @param PLID player id
+ * @param fname nome do ficheiro do jogador
+ * @return Existe ou nao jogo comecado pelo jogador
+ */
 int Server::FindGame(string PLID, char *fname) {
     DIR *dir;
     struct dirent *entry;
@@ -979,6 +1075,13 @@ int Server::FindGame(string PLID, char *fname) {
     return found;
 }
 
+/**
+ * Funcao que retorna as jogadas de um ficheiro.
+ * 
+ * @param PLID player id
+ * @param fname nome do ficheiro
+ * @return Existe ou nao jogo terminado pelo jogador
+ */
 int Server::FindLastGame(char* PLID, char *fname) {
     struct dirent ** filelist;
     int n_entries, found;
@@ -1002,12 +1105,18 @@ int Server::FindLastGame(char* PLID, char *fname) {
     return (found);
 }
 
+/**
+ * Funcao que encontra os 10 jogadores com a maior pontuacao.
+ * 
+ * @param message string com os 10 jogadores com a maior pontuacao
+ * @return Sucesso ou nao
+ */
 int Server::FindTopScores(string& message) {
     struct dirent** filelist;
     int n_entries;
     int n_game = 0;
     int n_file = 0;
-    char buffer[128];
+    char buffer[MAX_BUFFER_SIZE];
     FILE* fptr;
     vector<string> file_content;
 
@@ -1058,7 +1167,6 @@ int Server::FindTopScores(string& message) {
     message += "\0";
     return n_game;
 }
-
 
 int main(int argc, char** argv) {
 

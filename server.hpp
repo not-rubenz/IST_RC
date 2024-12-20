@@ -26,7 +26,7 @@ using std::vector;
 typedef struct SOCKET {
     int fd;
     struct addrinfo *res;
-    struct sockaddr_in addr;
+    struct sockaddr_in client_addr;
 } SOCKET;
 
 typedef struct TRIAL {
@@ -65,7 +65,6 @@ class Server {
         void end_game(string plid, int status);
         vector<TRIAL> GetTrials(FILE *file);
         int VerifyOngoing(string plid);
-        int TimeoutEnd(string plid);
         int create_dir(const char* dirname);
         int FindGame(string PLID, char *fname);
         int FindLastGame(char *PLID, char *fname);
