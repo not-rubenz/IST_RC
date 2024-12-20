@@ -24,13 +24,15 @@ using std::string;
 using std::vector;
 
 vector<string> split_line(string line);
-int sendTCP(int fd, string message, int size);
-int receiveTCP(int fd, char* message, int size);
-int receiveWordTCP(int fd, char* message, int size);
+int sendMessage(int fd, string message, int size);
+int receiveMessage(int fd, char* message, int size);
+int receiveWord(int fd, char* message, int size);
 int FindIndex(const char array[], char value, int size);
 int valid_PLID(string PLID);
 int valid_time(string time);
 int valid_color(string color);
+bool isNumber(const std::string& str);
+int isPort(string port_str);
 int reverse_alphasort(const struct dirent** a, const struct dirent** b);
 
 #endif
