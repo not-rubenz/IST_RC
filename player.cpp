@@ -250,7 +250,8 @@ void Player::show_trials_cmd() {
     FILE *file;
     ssize_t ret;
     string message = "STR " + plid + "\n";
-    char buffer[2048], Fname[24], Fsize[3];
+    char buffer[2048], Fname[24];
+    int Fsize;
 
     connect_TCP(gsip, gsport);
 
@@ -267,15 +268,15 @@ void Player::show_trials_cmd() {
         if (!strcmp(status, "NOK")) {
             response = "No games found.\n";
         } else {
-            sscanf(buffer, "RST %s %s %s", status, Fname, Fsize);
+            sscanf(buffer, "RST %s %s %d", status, Fname, &Fsize);
             response = string(buffer);
             response.erase(0, response.find("\n") + 1);
             if ((file = fopen(Fname, "w")) == NULL) {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            int n = fwrite(response.c_str(), sizeof(char), atoi(Fsize), file);
-            if (n < atoi(response.c_str())) {
+            int n = fwrite(response.c_str(), sizeof(char), Fsize, file);
+            if (n < Fsize) {
                 fclose(file);
                 fprintf(stderr, "Error writing into file.\n");
                 exit(EXIT_FAILURE);
@@ -285,7 +286,7 @@ void Player::show_trials_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), atoi(Fsize));
+    write(1, response.c_str(), strlen(response.c_str()));
     tcp_terminate();
 
 }
@@ -296,7 +297,8 @@ void Player::score_board_cmd() {
     int fd;
     ssize_t ret;
     string message = "SSB\n";
-    char buffer[2048], Fname[24], Fsize[4];
+    char buffer[2048], Fname[24];
+    int Fsize;
 
     connect_TCP(gsip, gsport);
 
@@ -311,7 +313,7 @@ void Player::score_board_cmd() {
     sscanf(buffer, "%s %s", cmd, status);
     if (!strcmp(cmd, "RSS")) {
         if (!strcmp(status, "OK")) {
-            sscanf(buffer, "RSS OK %s %s", Fname, Fsize);
+            sscanf(buffer, "RSS OK %s %d", Fname, &Fsize);
             
             response = string(buffer);
             response.erase(0, response.find("\n") + 1);
@@ -319,9 +321,9 @@ void Player::score_board_cmd() {
                 fprintf(stderr, "Error opening file.\n");
                 exit(EXIT_FAILURE);
             }
-            int n = fwrite(response.c_str(), sizeof(char), atoi(Fsize), file);
+            int n = fwrite(response.c_str(), sizeof(char), Fsize, file);
             printf("%ld\n", strlen(response.c_str()));
-            if (n < atoi(Fsize)) {
+            if (n < Fsize) {
                 fclose(file);
                 fprintf(stderr, "Error writing into file.\n");
                 exit(EXIT_FAILURE);
@@ -333,20 +335,15 @@ void Player::score_board_cmd() {
     } else {
         response = "Error: Invalid Input.\n";
     }
-    write(1, response.c_str(), atoi(Fsize));
+    write(1, response.c_str(), strlen(response.c_str()));
     tcp_terminate();
     
 }
 
 void Player::quit_cmd() {
     ssize_t ret;
-    string message;
+    string message = "QUT " + plid + '\n';
     char buffer[128];
-    if (!strcmp(plid.c_str(), "")) {
-        printf("There isn't an active game.\n");
-        return;
-    }
-    message = "QUT " + plid + '\n';
 
     ret = sendto(UDPsocket.fd, message.c_str(), strlen(message.c_str()), 0, UDPsocket.res->ai_addr, UDPsocket.res->ai_addrlen);
     if (ret == -1) {
@@ -369,9 +366,6 @@ void Player::quit_cmd() {
         if (!strcmp(status, "OK")) {
             sscanf(buffer, "%*s %*s %[^\n]", colors);
             response = "Game quit. The solution was: " + string(colors) + "\n";
-            plid = "";
-            max_playtime = "";
-            n_tries = 1;
         } else if (!strcmp(status, "NOK")) {
             response = "Error: There's not an ongoing game!\n";
         } else {
@@ -385,9 +379,7 @@ void Player::quit_cmd() {
 }
 
 void Player::exit_cmd() {
-    if (strcmp(plid.c_str(), "")) {
-        quit_cmd();
-    }
+    quit_cmd();
     string response = "Exiting game...\n";
     write(1, response.c_str(), strlen(response.c_str()));
     player_terminate();
